@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+tests/deck/report.txt
+tests/deck/_test_report.txt

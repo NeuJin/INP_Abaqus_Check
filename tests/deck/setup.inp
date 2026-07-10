@@ -1,0 +1,38 @@
+** setup test: surface / contact / section - co cai san loi
+** s_top_A CO Y thieu element 102 (lo thung giua surface)
+*SURFACE, NAME=s_top_A, TYPE=ELEMENT
+101, S2
+103, S2
+*SURFACE, NAME=s_top_B, TYPE=ELEMENT
+201, S2
+202, S2
+203, S2
+** s_bot_C chi phu 2/3 chieu dai s_top_B -> mat slave cua elem 203 khong duoc phu
+*SURFACE, NAME=s_bot_C, TYPE=ELEMENT
+301, S1
+302, S1
+** s_stale tro element khong ton tai (mo phong surface chet sau remesh)
+*SURFACE, NAME=s_stale, TYPE=ELEMENT
+99901, S1
+*SURFACE INTERACTION, NAME=FRICT_test
+1.0,
+*FRICTION
+0.1, 0.0
+*CONTACT PAIR, INTERACTION=FRICT_test, ADJUST=0.1, SMALL SLIDING
+s_top_B, s_bot_C
+** contact tro surface + interaction khong ton tai
+*CONTACT PAIR, INTERACTION=FRICT_missing
+s_top_A, s_ghost
+*TIE, NAME=tie_test, POSITION TOLERANCE = 0.3
+s_stale, s_top_A
+*SOLID SECTION, ELSET=BLOCK_A, MATERIAL=STEEL
+*SOLID SECTION, ELSET=BLOCK_C, MATERIAL=STEEL_missing
+** BLOCK_B co y KHONG co section
+*MATERIAL, NAME=STEEL
+*ELASTIC, TYPE=ISO
+210000., 0.3
+*MATERIAL, NAME=MAT_unused
+*ELASTIC
+100., 0.3
+**clearance, slave=s_top_B, master=s_bot_C, VALUE=<cl_test>
+** *TIE, NAME=tie_off

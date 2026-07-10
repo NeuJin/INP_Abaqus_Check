@@ -1,0 +1,30 @@
+*HEADING
+Test deck cho inp_check - co cai san cac loi de verify
+*PREPRINT,ECHO=NO
+*INCLUDE, INPUT=mesh.inp
+*INCLUDE, INPUT=setup.inp
+** *INCLUDE, INPUT=old_stuff.inp
+*INCLUDE, INPUT=missing_file.inp
+*PARAMETER
+Fax=1000.
+Punused=5.
+*NSET, NSET=nd_ref
+ 9001,
+*NSET, NSET=ns_gen, GENERATE
+ 1, 8, 1
+*ELSET, ELSET=es_all
+BLOCK_A, BLOCK_B
+*STEP, NAME=Step1, NLGEOM, INC=100
+*STATIC
+0.1, 1.0
+*BOUNDARY
+nd_ref,1,3,0.0
+nd_ghost,1,1,0.0
+88888,1,1,0.0
+*CLOAD
+9001, 1, <Fax>
+9001, 2, <Pmiss>
+99999, 3, 1.0
+*DLOAD
+BLOCK_A, GRAV, 9810., 0., 0., -1.
+*END STEP

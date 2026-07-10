@@ -1,10 +1,22 @@
 # DEVLOG — INP_Abaqus_Check
 
 > **🔄 HANDOFF:** Validator Python (stdlib only, 3.9+) cho deck Abaqus .inp xuất từ HyperMesh 14 — project K12E conrod.
-> Đọc `docs/K12E_DECK_FORMAT.md` = bản đồ format deck ĐẦY ĐỦ (khảo sát xong 2026-07-10, §9 = bẫy parser, §10 = danh sách check đã chốt).
-> Trạng thái: module share-node chạy được; các module còn lại **chưa viết — user dặn chờ lệnh**. File .inp thật chưa có trên máy này (khảo sát qua nội dung user gửi); khi test được trên deck thật thì ưu tiên verify parser trước.
+> Đọc `docs/K12E_DECK_FORMAT.md` = bản đồ format deck ĐẦY ĐỦ (§9 = bẫy parser).
+> **Trạng thái: tool CHÍNH `inp_check.py` đã viết xong đủ 9 nhóm check, regression test 16/16 PASS trên deck synthetic. CHƯA chạy trên deck K12E thật** (file nằm máy khác) — việc tiếp theo là user chạy trên deck thật, gửi output về để tinh chỉnh (ngưỡng gap-tol, false positive nhóm 7, keyword unknown nếu có). Test: `python tests\run_test.py`.
 
 ---
+
+## 2026-07-10 (chiều) — Viết xong tool chính `inp_check.py` v0.2.0
+
+- **Kiến trúc**: package `inpcheck/` — `reader.py` (resolve *INCLUDE đệ quy + chống cycle, phân loại comment 3 loại, normalize keyword bỏ space/`-`/case) → `model.py` (Builder dispatch `_kw_*`, thu refs kèm file:line ngay khi parse, continuation dấu phẩy, GENERATE, nested set refs, step context với OP) → `checks.py` (9 nhóm) → `geometry.py` (bảng mặt S1–S6 chuẩn Abaqus theo corner node, spatial hash Grid, union-find clustering).
+- **9 nhóm check**: structure/include → symbol table (kể cả surface stale trỏ element đã xóa) → parameter `<tên>` (cả trong comment) → section/material → CLOAD/BC↔mesh (node ma + node lơ lửng, loại trừ ref node coupling/pretension/rigidbody) → share node (gom VÙNG theo 3×cạnh element) → hình học (7a lỗ thủng ≥2 cạnh giáp; 7b độ phủ slave↔master bằng khoảng cách pháp tuyến + in-plane ≤ 1.1×bán kính mặt master, TIE dùng POSITION TOLERANCE riêng; 7c mặt tự do áp nhau ngoài mọi surface, pháp tuyến ngược) → inventory comment → step report.
+- **Quyết định thiết kế**: gap-tol mặc định = 0.2×cạnh element điển hình (median 2000 mẫu); nhóm 7b nếu >60% slave không phủ → nghi pair sai chứ không liệt kê từng mặt; console cap `--max-print`, full ra `--report`; exit 1 khi có ERROR (`--strict` tính cả WARN).
+- **Test**: `tests/deck/` cài sẵn 16 lỗi (include chết ×2, symbol ma ×4, surface stale, param ×2, section thiếu, BC/CLOAD node ma ×2, share node, lỗ thủng surface, master không phủ, mặt áp nhau) — `tests/run_test.py` PASS 16/16, không false positive trên deck test.
+- Message console toàn ASCII không dấu (tránh lỗi encoding console Nhật cp932).
+
+### Next
+1. Chạy trên deck K12E thật → tinh chỉnh (đặc biệt nhóm 7 với mặt cong bán kính lớn, và performance ~500k element).
+2. Cân nhắc: diff cấu trúc cp0 vs cp1 (so pair-by-pair 2 file contact); cảnh báo mtime mesh mới hơn odb của *INITIAL CONDITIONS.
 
 ## 2026-07-10 — Khởi tạo repo
 

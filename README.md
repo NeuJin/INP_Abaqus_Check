@@ -8,59 +8,81 @@ Bộ tool **validator cho deck Abaqus .inp** xuất từ HyperMesh — phát hi�
 
 ---
 
-## Module đã có
+## Tool chính: `inp_check.py`
 
-### 1. `check_shared_nodes.py` — phát hiện mất share node
+Đưa vào **file master**, tool tự lần theo toàn bộ `*INCLUDE` và chạy 9 nhóm check một lượt:
 
-**Bài toán:** tách 1 khối solid thành nhiều khối nhỏ để mesh riêng (do biên dạng phức tạp), sau đó share node lại tại mặt tiếp giáp. Vì biên dạng phức tạp nên vài điểm bị xót — hai khối vẫn "dính" ở phần lớn mặt tiếp giáp nhưng hở ngầm ở vài node.
-
-**Nguyên lý:** share node thành công = 2 khối dùng **chung 1 node ID**. Chỗ bị xót = tồn tại **2 node ID khác nhau nhưng trùng tọa độ**, và cả hai đều được element sử dụng. Tool quét toàn bộ `*NODE`, gom vào lưới không gian (spatial hash — 1 triệu dòng chạy trong vài giây), báo từng cặp kèm tọa độ và ELSET 2 phía.
-
-```
-python check_shared_nodes.py model.inp [--tol 1e-4] [--csv report.csv]
+```powershell
+python inp_check.py C:\duong\dan\K12E_DITC_Comb_6000rpm.inp --report bao_cao.txt
 ```
 
-| Tham số | Mặc định | Ý nghĩa |
+| Tùy chọn | Mặc định | Ý nghĩa |
 |---|---|---|
-| `inp` | (bắt buộc) | đường dẫn file .inp (master đã ghép, hoặc file mesh) |
-| `--tol` | `1e-4` | dung sai trùng tọa độ (đơn vị model). Mesh từ cùng bề mặt geometry thì node trùng gần tuyệt đối; nghi lệch do remesh thì tăng `1e-2` quét rộng |
-| `--csv` | — | ghi report đầy đủ ra CSV |
+| `--tol X` | `1e-4` | dung sai trùng tọa độ cho check share-node (đơn vị model) |
+| `--gap-tol X` | `0.2 × cạnh element` | khe hở cho phép khi check độ phủ contact (riêng *TIE dùng `POSITION TOLERANCE` khai trong deck) |
+| `--no-geom` | — | bỏ qua nhóm check hình học (nhanh hơn với deck rất lớn) |
+| `--report FILE` | — | ghi báo cáo **đầy đủ** ra file (console chỉ in tối đa `--max-print` dòng/nhóm) |
+| `--max-print N` | `15` | số dòng in ra console mỗi nhóm |
+| `--strict` | — | WARN cũng làm exit code = 1 |
 
-**Đọc kết quả:**
+Exit code: `0` = sạch, `1` = có ERROR (dùng được trong batch: check tự động trước khi submit job).
 
-- **"Cặp mà CẢ 2 node đều dùng"** = ứng viên mất share node. Bảng "Phân bố theo cặp ELSET" cho biết cặp thuộc component nào:
-  - cặp giữa 2 khối lẽ ra share node (vd `Conrod_Tetra ↔ Conrod_SE_Bore`) → **lỗi thật**;
-  - cặp giữa 2 mặt tie/contact cố ý để 2 lớp node (vd `_tie_1 ↔ _tie_2`) → bỏ qua.
-- Console in 10 cặp đầu kèm tọa độ `(x, y, z)` — dán vào HyperMesh (mask by sphere / nodes by id) để nhảy đúng chỗ cần equivalence lại.
-- Node trùng tọa độ nhưng **không thuộc element nào** (reference node của coupling, node mồ côi) được tự loại khỏi danh sách critical.
-- Exit code: `0` = sạch, `1` = có ứng viên lỗi (dùng được trong batch/CI).
+### 9 nhóm check
 
-**Parser đã xử lý đúng các đặc thù deck HyperMesh–Abaqus:** keyword hoa/thường lẫn lộn, element wrap nhiều dòng (continuation dấu phẩy cuối dòng — C3D8I, C3D10M), `*NODE` có tham số (`SYSTEM=R`), số dạng khoa học, comment `**`.
+| # | Nhóm | Bắt lỗi gì | Mức |
+|---|---|---|---|
+| 1 | **CẤU TRÚC / INCLUDE** | include trỏ file không tồn tại; include bị comment mà file đích cũng không còn (bỏ comment là crash); file bị include 2 lần | ERROR/WARN |
+| 2 | **THAM CHIẾU** (symbol table xuyên file) | surface/nset/elset/interaction/material/amplitude được tham chiếu nhưng không định nghĩa; **surface trỏ element không tồn tại (stale sau remesh)**; định nghĩa trùng; định nghĩa không ai dùng | ERROR |
+| 3 | **PARAMETER** | tham chiếu `<tên>` chưa được `*PARAMETER` định nghĩa — kể cả `<tên>` nằm trong dòng comment (bỏ comment là fail) | ERROR/WARN |
+| 4 | **SECTION / MATERIAL** | element không thuộc section nào; section gắn vào elset rỗng; elset có 2 section | ERROR |
+| 5 | **TẢI / BC ↔ MESH** | `*BOUNDARY`/`*CLOAD` trỏ node không tồn tại (điểm ghép với tool map lực ngoài — **mesh đổi mà file lực chưa sinh lại**); CLOAD vào node "lơ lửng" không truyền lực đi đâu; nhắc phụ thuộc `*INITIAL CONDITIONS, FILE=odb` | ERROR/WARN |
+| 6 | **SHARE NODE** | cặp node ID khác nhau trùng tọa độ mà cả 2 đều được element dùng = **mất share node**; tự loại ref node coupling/node mồ côi; **gom thành VÙNG lỗi** kèm tọa độ tâm để dán vào HyperMesh | ERROR |
+| 7 | **HÌNH HỌC CONTACT/SURFACE** | (a) **lỗ thủng** trong surface — element bị chọn sót giữa vùng (mặt tự do giáp ≥2 cạnh với surface); (b) **độ phủ** — mặt slave không có mặt master đối diện trong khe hở cho phép (miễn nhiễm hexa–tetra khác cỡ lưới); (c) **mặt tự do áp nhau** ngoài mọi surface — mất share node dạng lệch node / quên khai contact | WARN |
+| 8 | **SETUP ĐANG TẮT** | inventory mọi keyword bị comment (`** *TIE`, `**clearance`, `**INCLUDE`...) để xác nhận tắt có chủ đích | INFO |
+| 9 | **TỔNG QUAN STEP** | bảng BC/CLOAD/DLOAD/interference của từng step (kèm `OP=NEW`) để soát step quên khai lại BC | INFO |
+
+### Đọc kết quả nhóm 6 (share node)
+
+```
+[LOI ] VUNG 1: 5 cap node trung toa do quanh (12.4, -8.1, 95.2) | vd node 10/210 | Conrod_Tetra <-> Conrod_SE_Bore
+```
+- Mỗi VÙNG = một vết mất share node (nhiều cặp node liền kề gom làm một).
+- Dán tọa độ tâm vào HyperMesh (mask by sphere / find nodes) để nhảy đúng chỗ cần equivalence.
+- Cặp giữa 2 mặt tie cố ý (vd `_tie_1 <-> _tie_2`) thì bỏ qua — cột elset cho biết ngay.
+
+### Test
+
+```powershell
+python tests\run_test.py
+```
+Chạy tool trên deck tổng hợp (`tests/deck/`) có cài sẵn 16 lỗi đủ loại và assert bắt đủ.
 
 ---
 
-## Roadmap — các module tiếp theo (theo ưu tiên)
+## Tool phụ: `check_shared_nodes.py` (standalone)
 
-Thiết kế dựa trên khảo sát format deck thật (xem [docs/K12E_DECK_FORMAT.md](docs/K12E_DECK_FORMAT.md)):
+Bản độc lập chỉ check share-node, 1 file duy nhất — tiện copy sang máy khác chạy nhanh không cần cả repo:
 
-| # | Module | Bắt lỗi gì |
-|---|---|---|
-| 1 | **Include resolver + symbol table xuyên file** | Đọc master, lần theo `*INCLUDE`; mọi surface/nset/elset/interaction/parameter: định nghĩa ở đâu, tham chiếu ở đâu → báo *tham chiếu tới thứ không tồn tại*, *định nghĩa 2 lần*, *định nghĩa không ai dùng*, *tham chiếu trước định nghĩa*, *include trỏ file không tồn tại* |
-| 2 | **CLOAD ↔ mesh** | Khối `*CLOAD` hàng chục nghìn node sinh từ tool ngoài (map lực theo góc quay): mọi node nhận lực phải tồn tại và thuộc đúng lưới membrane — mesh đổi mà file lực chưa sinh lại là sai âm thầm nguy hiểm nhất |
-| 3 | **Surface thủng / độ phủ contact** | Chọn thiếu element vào surface contact (hexa–tetra, master–slave khác cỡ lưới): (a) *hole check* — face bề mặt không thuộc surface nhưng giáp ≥2 face thuộc surface; (b) *coverage check* — so tâm face + pháp tuyến 2 phía, mọi face slave phải được master phủ |
-| 4 | **Inventory setup bị comment** | Liệt kê mọi keyword bị tắt bằng `**` (BC, contact, tie, clearance, include) để xác nhận "tắt có chủ đích" — không phải quên bật |
-| 5 | **Bảng BC/tải hiệu lực per-step** | Xử lý semantics `OP=NEW` (xóa thay toàn bộ) — dựng bảng BC/load thực tế của từng step, soát step quên khai lại BC |
-| 6 | **Đối chiếu section** | Mọi ELSET có element phải có `*SOLID SECTION`/`*MEMBRANE SECTION`; mọi section phải có `*MATERIAL`; material không ai dùng |
+```powershell
+python check_shared_nodes.py model.inp [--tol 1e-4] [--csv report.csv]
+```
 
 ## Cấu trúc repo
 
 ```
 INP_Abaqus_Check/
-├── check_shared_nodes.py      # module 3 (share node) — đã chạy được
-├── docs/
-│   └── K12E_DECK_FORMAT.md    # bản đồ format deck K12E conrod (khảo sát đầy đủ)
-├── DEVLOG.md                  # nhật ký phát triển
-└── README.md
+├── inp_check.py               # CLI chinh - chay 9 nhom check
+├── inpcheck/
+│   ├── reader.py              # doc deck, resolve *INCLUDE, phan loai comment
+│   ├── model.py               # builder: keyword -> data model + refs
+│   ├── checks.py              # 9 nhom check
+│   └── geometry.py            # bang mat element, spatial hash, clustering
+├── check_shared_nodes.py      # ban standalone chi check share-node
+├── tests/
+│   ├── deck/                  # test deck cai san 16 loi
+│   └── run_test.py            # regression test
+├── docs/K12E_DECK_FORMAT.md   # ban do format deck K12E (co so thiet ke parser)
+└── DEVLOG.md
 ```
 
 ## Bài học thiết kế parser (đúc kết từ khảo sát deck thật)
@@ -68,6 +90,7 @@ INP_Abaqus_Check/
 1. **Case-insensitive tuyệt đối** — cùng 1 deck trộn `*CONTACT PAIR`, `*surface`, `*Coupling`.
 2. **Tham số cho phép viết tắt** — `TYPE=ISO` ≡ `TYPE=ISOTROPIC` → so khớp kiểu prefix.
 3. **Continuation** — dòng data kết thúc bằng `,` thì record tiếp tục ở dòng sau (C3D8I, C3D10M đều wrap).
-4. **Không suy loại entity từ ID** — element membrane và node có thể trùng nguyên dải số (M3D4 elem 500000–517999 = đúng dải node ID).
-5. **Comment `**` có 3 loại** cần phân biệt: trang trí/ghi chú, metadata `**HMNAME` (map ngược về group ID HyperMesh — rất quý), và **keyword bị comment** (setup đang tắt — phải inventory, không được lờ đi).
-6. **`*PARAMETER` + tham chiếu `<tên>`** — mọi `<tên>` xuất hiện trong data phải được định nghĩa; kể cả trong dòng comment cũng nên cảnh báo mức thấp (ngày nào đó bỏ comment là fail).
+4. **Không suy loại entity từ ID** — element membrane và node có thể trùng nguyên dải số.
+5. **Comment `**` có 3 loại** cần phân biệt: trang trí/ghi chú, metadata `**HMNAME`, và **keyword bị comment** (phải inventory, không được lờ đi).
+6. **`*PARAMETER` + tham chiếu `<tên>`** — mọi `<tên>` phải được định nghĩa; kể cả trong dòng comment cũng cảnh báo.
+7. **`OP=NEW`** xóa thay toàn bộ BC/tải cũ — bảng hiệu lực đổi theo từng step.
