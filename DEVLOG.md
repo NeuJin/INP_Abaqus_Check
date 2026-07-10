@@ -21,8 +21,15 @@
 - `--selftest <deck>`: load + check headless, assert đủ nhóm entity/finding → PASS (khớp CLI 11 LỖI/6 CẢNH BÁO trên test deck). Đã verify trực quan bằng screenshot 2 trạng thái.
 - Style: theme clam + màu xám HM classic (#d6d3ce), selection xanh #316ac5.
 
+## 2026-07-10 (tối, tiếp) — Double-click mở sakura tại dòng lỗi
+
+- User cho phép external call này. Double-click finding HOẶC entity trên Model browser → `subprocess.Popen([sakura, "-Y=<dòng>", "-X=1", file])` (sakura hỗ trợ -Y/-X nhảy dòng/cột).
+- Dò sakura: PATH → `Program Files (x86)\sakura` → App Paths registry (HKCU/HKLM + WOW6432Node). Máy dev KHÔNG có sakura (nó ở máy công ty) → không thấy thì dialog hỏi đường dẫn 1 lần, lưu `gui_config.json` (đã gitignore); cancel → `os.startfile` fallback (không nhảy dòng).
+- `loc_map`: mọi entity trên cây (file/elset/nset/surface/contact/tie/material/parameter/step) đều mang (file, line) định nghĩa đầu tiên.
+- Verified: selftest + regression PASS; cơ chế Popen test bằng notepad giả sakura (spawn OK, status đúng). Tham số -Y thật chỉ verify được trên máy có sakura.
+
 ### Next
-1. Chạy trên deck K12E thật (GUI hoặc CLI) → tinh chỉnh (đặc biệt nhóm 7 với mặt cong bán kính lớn, và performance ~500k element).
+1. Chạy trên deck K12E thật (GUI hoặc CLI) → tinh chỉnh (đặc biệt nhóm 7 với mặt cong bán kính lớn, và performance ~500k element). Verify double-click nhảy đúng dòng trên máy có sakura.
 2. Cân nhắc: diff cấu trúc cp0 vs cp1 (so pair-by-pair 2 file contact); cảnh báo mtime mesh mới hơn odb của *INITIAL CONDITIONS; GUI thêm nút re-run 1 nhóm check riêng.
 
 ## 2026-07-10 — Khởi tạo repo

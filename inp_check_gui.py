@@ -11,8 +11,10 @@ Bo cuc mo phong HyperMesh 14:
 Chay:  python inp_check_gui.py [file.inp]
 Selftest (khong can thao tac tay):  python inp_check_gui.py --selftest tests\\deck\\master.inp
 """
+import json
 import os
 import queue
+import subprocess
 import sys
 import threading
 import time
@@ -20,6 +22,52 @@ import traceback
 
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
+
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+_CONFIG_PATH = os.path.join(_SCRIPT_DIR, "gui_config.json")
+
+
+def _load_config():
+    try:
+        with open(_CONFIG_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_config(cfg):
+    try:
+        with open(_CONFIG_PATH, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=1)
+    except OSError:
+        pass
+
+
+def _detect_sakura():
+    """Tim sakura.exe: PATH -> thu muc cai chuan -> App Paths registry."""
+    import shutil
+    p = shutil.which("sakura")
+    if p:
+        return p
+    for c in (r"C:\Program Files (x86)\sakura\sakura.exe",
+              r"C:\Program Files\sakura\sakura.exe"):
+        if os.path.isfile(c):
+            return c
+    try:
+        import winreg
+        for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+            for sub in (r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\sakura.exe",
+                        r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\sakura.exe"):
+                try:
+                    with winreg.OpenKey(hive, sub) as k:
+                        v = winreg.QueryValue(k, None)
+                        if v and os.path.isfile(v):
+                            return v
+                except OSError:
+                    continue
+    except ImportError:
+        pass
+    return None
 
 from inpcheck.reader import DeckReader
 from inpcheck.model import Builder
@@ -57,7 +105,12 @@ class App(object):
         self.model = None
         self.findings = []
         self.detail_map = {}      # tree item id -> list (name, value)
+        self.loc_map = {}         # tree item id -> (file, line) de double-click mo editor
         self.finding_map = {}     # findings item id -> Finding
+        self.config = _load_config()
+        self.editor_path = self.config.get("editor")
+        if not (self.editor_path and os.path.isfile(self.editor_path)):
+            self.editor_path = _detect_sakura()
         self._swatches = []       # giu tham chieu PhotoImage
         self._swatch_cache = {}
         self.q = queue.Queue()
@@ -141,6 +194,7 @@ class App(object):
         self.tree.tag_configure("cat", foreground=COL_GROUP,
                                 font=("Segoe UI", 9, "bold"))
         self.tree.bind("<<TreeviewSelect>>", self.on_select_entity)
+        self.tree.bind("<Double-1>", self.on_dbl_entity)
 
         fr_det = tk.Frame(pl, bg=HM_BG)
         pl.add(fr_det, weight=2)
@@ -193,12 +247,14 @@ class App(object):
         self.res.tag_configure("group", foreground=COL_GROUP,
                                font=("Segoe UI", 9, "bold"))
         self.res.bind("<<TreeviewSelect>>", self.on_select_finding)
+        self.res.bind("<Double-1>", self.on_dbl_finding)
 
         fr_txt = tk.Frame(pr, bg=HM_BG)
         pr.add(fr_txt, weight=1)
         tbar = tk.Frame(fr_txt, bg=HM_BG)
         tbar.pack(fill="x")
-        ttk.Label(tbar, text="Chi tiet:").pack(side="left", padx=4)
+        ttk.Label(tbar, text="Chi tiet:  (double-click 1 dong de mo editor "
+                             "ngay tai dong loi)").pack(side="left", padx=4)
         ttk.Button(tbar, text="Copy vi tri",
                    command=self.on_copy_loc).pack(side="right", padx=4, pady=1)
         self.txt = tk.Text(fr_txt, height=4, wrap="word", font=("Consolas", 9),
@@ -352,6 +408,61 @@ class App(object):
             self.root.clipboard_append(loc)
             self._set_status("Da copy: %s" % loc)
 
+    # ------------------------------------------------- mo editor ------
+    def _ask_editor(self):
+        """Hoi duong dan sakura.exe 1 lan, luu vao gui_config.json."""
+        messagebox.showinfo(
+            "Chon editor",
+            "Chua tim thay sakura.exe tren may nay.\n"
+            "Chon file sakura.exe (hoac editor khac) de mo file tai dong loi.\n"
+            "Chon xong se duoc nho cho cac lan sau (gui_config.json).\n"
+            "Bam Cancel de mo bang editor mac dinh cua Windows (khong nhay dong).")
+        p = filedialog.askopenfilename(
+            title="Chon sakura.exe",
+            filetypes=[("Executable", "*.exe"), ("Tat ca", "*.*")])
+        if p:
+            self.editor_path = p
+            self.config["editor"] = p
+            _save_config(self.config)
+        return p
+
+    def _open_editor(self, path, line):
+        if not path or not os.path.isfile(path):
+            self._set_status("File khong ton tai: %s" % (path or "?"))
+            return
+        if not (self.editor_path and os.path.isfile(self.editor_path)):
+            self._ask_editor()
+        if self.editor_path and os.path.isfile(self.editor_path):
+            # sakura ho tro -Y=<dong> -X=<cot>; editor khac nhan file la duoc
+            try:
+                subprocess.Popen([self.editor_path, "-Y=%d" % max(1, line),
+                                  "-X=1", path])
+                self._set_status("Mo %s:%d bang %s" %
+                                 (self._rel(path), line,
+                                  os.path.basename(self.editor_path)))
+                return
+            except OSError as e:
+                self._set_status("Khong chay duoc editor: %s" % e)
+        try:
+            os.startfile(path)
+            self._set_status("Mo %s bang editor mac dinh (khong nhay dong duoc)"
+                             % self._rel(path))
+        except OSError as e:
+            self._set_status("Khong mo duoc file: %s" % e)
+
+    def on_dbl_finding(self, _ev=None):
+        sel = self.res.selection()
+        if sel:
+            fd = self.finding_map.get(sel[0])
+            if fd and fd.file:
+                self._open_editor(fd.file, fd.line)
+
+    def on_dbl_entity(self, _ev=None):
+        sel = self.tree.selection()
+        if sel and sel[0] in self.loc_map:
+            f, l = self.loc_map[sel[0]]
+            self._open_editor(f, l)
+
     # ------------------------------------------------------ populate --
     def _poll_queue(self):
         try:
@@ -394,6 +505,7 @@ class App(object):
         t = self.tree
         t.delete(*t.get_children())
         self.detail_map.clear()
+        self.loc_map.clear()
         m, rd = self.model, self.reader
 
         # ---- Files ----
@@ -403,11 +515,13 @@ class App(object):
             iid = t.insert(nf, "end", text=self._rel(p) or os.path.basename(p),
                            values=("",))
             self.detail_map[iid] = [("File", p)]
+            self.loc_map[iid] = (p, 1)
         for f, l, target in rd.missing_includes:
             iid = t.insert(nf, "end", text="%s  (KHONG TON TAI)" % target,
                            values=("",), tags=("missing",))
             self.detail_map[iid] = [("Include o", "%s:%d" % (self._rel(f), l)),
                                     ("Trang thai", "FILE KHONG TON TAI")]
+            self.loc_map[iid] = (f, l)
 
         # ---- Components (ELSET co element) ----
         comp_names = sorted(n for n in m.elsets if m.elsets[n]["ids"])
@@ -430,6 +544,8 @@ class App(object):
             for f, l in m.elsets[name]["defs"][:3]:
                 rows.append(("Dinh nghia", "%s:%d" % (self._rel(f), l)))
             self.detail_map[iid] = rows
+            if m.elsets[name]["defs"]:
+                self.loc_map[iid] = m.elsets[name]["defs"][0]
 
         # ---- Node sets ----
         nn = t.insert("", "end", text="Node Sets (%d)" % len(m.nsets),
@@ -441,6 +557,8 @@ class App(object):
             if ids:
                 rows.append(("Vi du", ", ".join(str(x) for x in ids[:8])))
             self.detail_map[iid] = rows
+            if m.nsets[name]["defs"]:
+                self.loc_map[iid] = m.nsets[name]["defs"][0]
 
         # ---- Surfaces ----
         ns = t.insert("", "end", text="Surfaces (%d)" % len(m.surfaces),
@@ -453,6 +571,8 @@ class App(object):
             for f, l in s.defs[:3]:
                 rows.append(("Dinh nghia", "%s:%d" % (self._rel(f), l)))
             self.detail_map[iid] = rows
+            if s.defs:
+                self.loc_map[iid] = s.defs[0]
 
         # ---- Contact ----
         ncc = t.insert("", "end",
@@ -466,6 +586,7 @@ class App(object):
                 ("Slave", sl), ("Master", ms), ("Interaction", inter or "-"),
                 ("Step", step or "(model)"),
                 ("Dinh nghia", "%s:%d" % (self._rel(f), l))]
+            self.loc_map[iid] = (f, l)
         for name, sl, ms, postol, step, f, l in m.ties:
             iid = t.insert(ncc, "end", text="TIE   %s  <->  %s" % (sl, ms),
                            values=("",))
@@ -473,6 +594,7 @@ class App(object):
                 ("Name", name or "-"), ("Slave", sl), ("Master", ms),
                 ("Position tol", postol if postol is not None else "-"),
                 ("Dinh nghia", "%s:%d" % (self._rel(f), l))]
+            self.loc_map[iid] = (f, l)
 
         # ---- Materials ----
         nm = t.insert("", "end", text="Materials (%d)" % len(m.materials),
@@ -482,6 +604,7 @@ class App(object):
             iid = t.insert(nm, "end", text=name, values=("",))
             self.detail_map[iid] = [("Name", name),
                                     ("Dinh nghia", "%s:%d" % (self._rel(f), l))]
+            self.loc_map[iid] = (f, l)
 
         # ---- Parameters ----
         np_ = t.insert("", "end", text="Parameters (%d)" % len(m.parameters),
@@ -491,6 +614,7 @@ class App(object):
             iid = t.insert(np_, "end", text=name, values=("",))
             self.detail_map[iid] = [("Name", name),
                                     ("Dinh nghia", "%s:%d" % (self._rel(f), l))]
+            self.loc_map[iid] = (f, l)
 
         # ---- Steps ----
         nst = t.insert("", "end", text="Steps (%d)" % len(m.steps),
@@ -505,6 +629,7 @@ class App(object):
                 ("Interference", st.n_interference),
                 ("Model change", st.n_modelchange),
                 ("Vi tri", "%s:%d" % (self._rel(st.file), st.line))]
+            self.loc_map[iid] = (st.file, st.line)
 
     def populate_findings(self):
         r = self.res

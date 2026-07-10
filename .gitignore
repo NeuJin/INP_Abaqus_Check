@@ -1,4 +1,5 @@
 __pycache__/
 *.pyc
+gui_config.json
 tests/deck/report.txt
 tests/deck/_test_report.txt
