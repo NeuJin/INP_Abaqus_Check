@@ -37,6 +37,8 @@ EXPECTED = [
     ("PATTERN MISMATCH BLOCK_E <-> BLOCK_F", "pattern mismatch tai mat share node"),
     ("s_top_G<->s_bot_H: lech bien dang", "stats khoang cach co dau slave->master"),
     ("VUNG XUYEN THAU", "2 mat contact cat nhau (lech bien dang)"),
+    ("GHEP SHARE-NODE KHONG KHOP BLOCK_I <-> BLOCK_J",
+     "ghep share-node lech bien dang, khong can contact pair"),
 ]
 
 

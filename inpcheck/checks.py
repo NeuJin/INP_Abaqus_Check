@@ -740,6 +740,67 @@ def check_geometry(model, gap_tol=None, coin_tol=None, pen_tol=None):
                              "tam giac theo duong cheo KHAC NHAU, mat tiep giap khong lien tuc"
                              % (na, nb, vung_mm, len(cl), _fmt_pt(c),
                                 ea[2], ea[3], eb[2], eb[3])))
+
+    # ---- 7f. GHEP SHARE-NODE KHONG KHOP (khong can contact pair) ----
+    # 2 khoi CUNG solid ghep bang share node -> da co node chung o cho ghep OK.
+    # Cho nao giua DUNG CAP KHOI DO van con mat tu do 2 phia doi dien nhau
+    # trong cu ly < ~1 canh element (ma khong thuoc surface contact nao)
+    # => bien dang 2 ben khong khop, share node bi xot.
+    join_share = {}
+    for nid, es in node_elsets.items():
+        if len(es) > 1:
+            lst = sorted(es)
+            for i in range(len(lst)):
+                for j in range(i + 1, len(lst)):
+                    k = (lst[i], lst[j])
+                    join_share[k] = join_share.get(k, 0) + 1
+    join_pairs = set(k for k, n in join_share.items() if n >= 3)
+    if join_pairs and free:
+        prox = 0.75 * m.median_edge
+        grid_j = Grid(prox)
+        for idx, (c, nrm, eid) in enumerate(free):
+            grid_j.add(c, idx)
+        cand = []
+        for i, (c, nrm, eid) in enumerate(free):
+            E = m.elem_elset.get(eid, "") or "?"
+            hit = None
+            for cq, j in grid_j.near(c):
+                if j == i:
+                    continue
+                c2, n2, e2 = free[j]
+                E2 = m.elem_elset.get(e2, "") or "?"
+                if E2 == E:
+                    continue
+                key2 = (E, E2) if E < E2 else (E2, E)
+                if key2 not in join_pairs:
+                    continue
+                if dist(c, c2) > prox or dot(nrm, n2) > -0.2:
+                    continue
+                d = abs(dot(sub(c2, c), nrm))
+                if hit is None or d > hit[1]:
+                    hit = (key2, d)
+            if hit is not None:
+                cand.append((c, E, eid, hit[0], hit[1]))
+        by_pair = {}
+        for c, E, eid, key2, d in cand:
+            by_pair.setdefault(key2, []).append((c, E, eid, d))
+        vung_j = 0
+        for key2 in sorted(by_pair):
+            items = by_pair[key2]
+            pts = [c for c, _E, _e, _d in items]
+            for cl in cluster_points(pts, 3.0 * m.median_edge):
+                owners = set(items[i][1] for i in cl)
+                if len(owners) < 2:
+                    continue  # phai co mat tu do o CA 2 phia
+                vung_j += 1
+                cc = centroid([pts[i] for i in cl])
+                dmaxj = max(items[i][3] for i in cl)
+                e0 = items[cl[0]][2]
+                F.append(Finding("ERROR", CK_GEOM, "", 0,
+                                 "GHEP SHARE-NODE KHONG KHOP %s <-> %s: VUNG %d co %d mat tu do "
+                                 "doi nhau (lech toi da ~%.4g) quanh %s (vd elem %d) - 2 khoi da "
+                                 "share node noi khac nhung cho nay bien dang KHONG KHOP, ghep bi xot?"
+                                 % (key2[0], key2[1], vung_j, len(cl), dmaxj, _fmt_pt(cc), e0)))
     return F
 
 

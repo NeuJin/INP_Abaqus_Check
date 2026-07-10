@@ -50,8 +50,16 @@
 - Master là membrane (skin) → bỏ phần dấu (không xác định được hướng ngoài).
 - Fixture G/H (mặt master nghiêng: xuyên 0.15/hở 0.25): đo ra −0.1393/+0.2321 = đúng giá trị chiếu theo pháp tuyến, vị trí đúng → 21/21 PASS.
 
+## 2026-07-10 (tối, tiếp 5) — Check 7f: GHÉP SHARE-NODE KHÔNG KHỚP (không cần pair)
+
+- User chỉ ra điểm mù của 7e: vùng lệch biên dạng giữa 2 KHỐI CÙNG SOLID ghép share-node — không thuộc contact pair nào → 7e không thấy.
+- Tín hiệu thay thế: 2 khối đã share node ở nơi ghép OK (≥3 node ID chung) = "join pair". Giữa đúng cặp khối đó, mặt tự do 2 phía **đối diện nhau** (dot pháp tuyến < −0.2) trong cự ly < 0.75×cạnh element, không thuộc surface nào, có bằng chứng CẢ 2 phía → ERROR kèm độ lệch ước tính.
+- Lọc tự nhiên: cặp contact 2 lớp node (Upper/Lower, bush...) dùng node ID RIÊNG → không phải join pair → không báo nhầm; mặt ngoài gặp nhau ở góc lồi/lõm có pháp tuyến không đối nhau → loại.
+- Fixture BLOCK_I/J (tầng dưới share OK, tầng trên lệch 0.05) → bắt đúng vị trí, lech ~0.025; G/H (contact, không share) không bị báo → 22/22 PASS.
+- Lưu ý: 7f cũng bắt lại vùng của share-node check (A/B) và 7d (E/F) — trùng lặp có chủ đích, 3 lăng kính cùng chỉ 1 chỗ lỗi.
+
 ### Next
-1. Chạy lại trên deck K12E thật → xác nhận phân loại share-node + xem 7d/7e trên mặt cong thật (bore/bush) — chú ý 7e trên mặt cong lớn: pháp tuyến facet xấp xỉ, ngưỡng pen-tol có thể cần nới. Verify double-click sakura (đã có nút Editor...).
+1. Chạy lại trên deck K12E thật → xác nhận phân loại share-node + 7d/7e/7f trên mặt cong thật (bore/bush). 7f trên model thật có thể ồn nếu có khe thiết kế < 1 cạnh element giữa 2 khối share-node — nếu ồn thì hạ prox hoặc thêm ngưỡng --join-tol. Verify double-click sakura.
 2. Cân nhắc: diff cấu trúc cp0 vs cp1 (so pair-by-pair 2 file contact); cảnh báo mtime mesh mới hơn odb của *INITIAL CONDITIONS; GUI thêm nút re-run 1 nhóm check riêng.
 
 ## 2026-07-10 — Khởi tạo repo
