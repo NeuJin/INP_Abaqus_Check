@@ -14,12 +14,19 @@
 ** s_stale tro element khong ton tai (mo phong surface chet sau remesh)
 *SURFACE, NAME=s_stale, TYPE=ELEMENT
 99901, S1
+** cap surface tai mat tiep giap A|D (2 lop node co chu dich, dung contact)
+*SURFACE, NAME=s_side_A, TYPE=ELEMENT
+103, S4
+*SURFACE, NAME=s_side_D, TYPE=ELEMENT
+401, S6
 *SURFACE INTERACTION, NAME=FRICT_test
 1.0,
 *FRICTION
 0.1, 0.0
 *CONTACT PAIR, INTERACTION=FRICT_test, ADJUST=0.1, SMALL SLIDING
 s_top_B, s_bot_C
+*CONTACT PAIR, INTERACTION=FRICT_test, SMALL SLIDING
+s_side_A, s_side_D
 ** contact tro surface + interaction khong ton tai
 *CONTACT PAIR, INTERACTION=FRICT_missing
 s_top_A, s_ghost
@@ -27,6 +34,7 @@ s_top_A, s_ghost
 s_stale, s_top_A
 *SOLID SECTION, ELSET=BLOCK_A, MATERIAL=STEEL
 *SOLID SECTION, ELSET=BLOCK_C, MATERIAL=STEEL_missing
+*SOLID SECTION, ELSET=BLOCK_D, MATERIAL=STEEL
 ** BLOCK_B co y KHONG co section
 *MATERIAL, NAME=STEEL
 *ELASTIC, TYPE=ISO

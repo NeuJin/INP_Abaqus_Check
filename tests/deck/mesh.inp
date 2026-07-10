@@ -41,6 +41,16 @@
     34, 0.0, 1.0, 3.05
     35, 1.0, 1.0, 3.05
     36, 2.0, 1.0, 3.05
+** BLOCK_D: khoi ben phai A, 2 lop node CO CHU DICH tai x=3 (contact thay share)
+** node 41..44 trung toa do node 4,8,12,16 cua BLOCK_A
+    41, 3.0, 0.0, 0.0
+    42, 3.0, 1.0, 0.0
+    43, 3.0, 0.0, 1.0
+    44, 3.0, 1.0, 1.0
+    45, 4.0, 0.0, 0.0
+    46, 4.0, 1.0, 0.0
+    47, 4.0, 0.0, 1.0
+    48, 4.0, 1.0, 1.0
 ** node nhan luc dung rieng (khong thuoc element nao)
   9001, 99.0, 99.0, 99.0
 *ELEMENT,TYPE=C3D8,ELSET=BLOCK_A
@@ -55,3 +65,5 @@
 *ELEMENT,TYPE=C3D8,ELSET=BLOCK_C
    301,      25,      26,      29,      28,      31,      32,      35,      34
    302,      26,      27,      30,      29,      32,      33,      36,      35
+*ELEMENT,TYPE=C3D8,ELSET=BLOCK_D
+   401,      41,      45,      46,      42,      43,      47,      48,      44

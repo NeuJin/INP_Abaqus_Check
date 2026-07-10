@@ -28,8 +28,15 @@
 - `loc_map`: mọi entity trên cây (file/elset/nset/surface/contact/tie/material/parameter/step) đều mang (file, line) định nghĩa đầu tiên.
 - Verified: selftest + regression PASS; cơ chế Popen test bằng notepad giả sakura (spawn OK, status đúng). Tham số -Y thật chỉ verify được trên máy có sakura.
 
+## 2026-07-10 (tối, tiếp 2) — Phân loại vùng share-node: lỗi thật vs contact có chủ đích
+
+- **Bối cảnh**: user chạy trên deck K12E thật → nhóm 6 báo 19 "lỗi" nhưng phần lớn là vùng 2 lớp node CỐ Ý (contact thay share node: Bush↔SE_Bore, Upper↔Lower mặt aws, Bolt↔Conrod bore...).
+- **Giải pháp**: mỗi cặp node trùng → tra node thuộc surface nào (`_resolve_surface_faces`) → nếu 2 node nằm trên 2 surface của cùng một *CONTACT PAIR/*TIE ⇒ có chủ đích. Phân loại vùng: **INFO** (100% cặp thuộc contact, in tên cặp), **WARN** (một phần cặp NGOÀI surface contact → mép contact chọn thiếu element hoặc mất share cạnh vùng contact), **ERROR** (không contact nào phủ → nghi mất share thật). Sort ERROR trước.
+- Đổi cách gom vùng: nhóm theo CẶP ELSET trước rồi mới cluster không gian → Upper↔Lower không bị trộn với Bush↔Bore dù sát nhau.
+- Test deck thêm BLOCK_D (2 lớp node + contact s_side_A/s_side_D) → 18/18 PASS: vùng contact ra INFO, node 10/210 vẫn ERROR.
+
 ### Next
-1. Chạy trên deck K12E thật (GUI hoặc CLI) → tinh chỉnh (đặc biệt nhóm 7 với mặt cong bán kính lớn, và performance ~500k element). Verify double-click nhảy đúng dòng trên máy có sakura.
+1. Chạy lại trên deck K12E thật → xác nhận 19 vùng được phân loại đúng (kỳ vọng: đa số thành INFO, còn lại ERROR/WARN là chỗ cần sửa thật). Verify double-click nhảy đúng dòng trên máy có sakura.
 2. Cân nhắc: diff cấu trúc cp0 vs cp1 (so pair-by-pair 2 file contact); cảnh báo mtime mesh mới hơn odb của *INITIAL CONDITIONS; GUI thêm nút re-run 1 nhóm check riêng.
 
 ## 2026-07-10 — Khởi tạo repo

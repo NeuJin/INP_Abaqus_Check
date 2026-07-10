@@ -305,19 +305,94 @@ def check_shared_nodes(model, tol):
                      % (len(pairs), len(critical), n_ignored)))
     if not critical:
         return F
-    # gom cum theo vi tri (ban kinh = 3 lan canh element dien hinh)
+
+    # ---- phan loai theo contact/tie: 2 lop node CO CHU DICH hay LOI? ----
+    # node thuoc surface nao (chi surface element-based)
+    node_surfs = {}
+    for sname, surf in m.surfaces.items():
+        if surf.kind != "ELEMENT":
+            continue
+        for _key, ordered, _eid in _resolve_surface_faces(m, surf):
+            for nid in ordered:
+                s = node_surfs.get(nid)
+                if s is None:
+                    node_surfs[nid] = {sname}
+                else:
+                    s.add(sname)
+    # cap surface nao co contact/tie
+    cp_label = {}
+    for sl, ms, _inter, _step, _f, _l in m.contact_pairs:
+        cp_label.setdefault(frozenset((sl, ms)), "CONTACT %s<->%s" % (sl, ms))
+    for _name, sl, ms, _pt, _step, _f, _l in m.ties:
+        cp_label.setdefault(frozenset((sl, ms)), "TIE %s<->%s" % (sl, ms))
+
+    def pair_contact(a, b):
+        sa = node_surfs.get(a)
+        sb = node_surfs.get(b)
+        if not sa or not sb:
+            return None
+        for x in sa:
+            for y in sb:
+                lb = cp_label.get(frozenset((x, y)))
+                if lb:
+                    return lb
+        return None
+
+    # gom nhom theo CAP ELSET truoc (Upper<->Lower khac Bush<->Bore),
+    # roi cluster khong gian trong tung nhom (ban kinh = 3 lan canh element)
+    groups = {}
+    for i, (a, b) in enumerate(critical):
+        ea = ",".join(sorted(node_elsets.get(a, ["?"])))
+        eb = ",".join(sorted(node_elsets.get(b, ["?"])))
+        groups.setdefault(tuple(sorted((ea, eb))), []).append(i)
     radius = 3.0 * m.median_edge
-    mids = [m.nodes[a] for a, _b in critical]
-    clusters = cluster_points(mids, radius)
-    for ci, idxs in enumerate(clusters, 1):
-        pts = [mids[i] for i in idxs]
-        c = centroid(pts)
-        a0, b0 = critical[idxs[0]]
+    vung = 0
+    results = []
+    for key in sorted(groups):
+        gidx = groups[key]
+        pts = [m.nodes[critical[i][0]] for i in gidx]
+        for cl in cluster_points(pts, radius):
+            sel = [gidx[j] for j in cl]
+            c = centroid([m.nodes[critical[i][0]] for i in sel])
+            labels = Counter()
+            uncov = 0
+            for i in sel:
+                lb = pair_contact(*critical[i])
+                if lb:
+                    labels[lb] += 1
+                else:
+                    uncov += 1
+            results.append((key, sel, c, labels, uncov))
+    # ERROR truoc, WARN giua, INFO cuoi de dot vao mat loi that
+    def rank(r):
+        _k, sel, _c, labels, uncov = r
+        if uncov == 0 and labels:
+            return 2
+        if labels:
+            return 1
+        return 0
+    results.sort(key=lambda r: (rank(r), -len(r[1])))
+    for key, sel, c, labels, uncov in results:
+        vung += 1
+        n = len(sel)
+        a0, b0 = critical[sel[0]]
         es_a = ",".join(sorted(node_elsets.get(a0, ["?"])))
         es_b = ",".join(sorted(node_elsets.get(b0, ["?"])))
-        F.append(Finding("ERROR", CK_SHARE, "", 0,
-                         "VUNG %d: %d cap node trung toa do quanh %s | vd node %d/%d | %s <-> %s"
-                         % (ci, len(idxs), _fmt_pt(c), a0, b0, es_a, es_b)))
+        base = ("VUNG %d: %d cap node trung toa do quanh %s | vd node %d/%d | %s <-> %s"
+                % (vung, n, _fmt_pt(c), a0, b0, es_a, es_b))
+        if uncov == 0 and labels:
+            lb = labels.most_common(1)[0][0]
+            F.append(Finding("INFO", CK_SHARE, "", 0,
+                             base + " = vung %s (2 lop node CO CHU DICH)" % lb))
+        elif labels:
+            lb = labels.most_common(1)[0][0]
+            F.append(Finding("WARN", CK_SHARE, "", 0,
+                             base + " | %d/%d cap thuoc %s nhung %d cap NGOAI surface "
+                             "contact - mep contact chon thieu element hoac mat share "
+                             "node sat vung contact" % (n - uncov, n, lb, uncov)))
+        else:
+            F.append(Finding("ERROR", CK_SHARE, "", 0,
+                             base + " | KHONG thuoc contact/tie nao -> nghi MAT SHARE NODE"))
     return F
 
 
