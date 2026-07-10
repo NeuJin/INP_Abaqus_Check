@@ -7,7 +7,8 @@ sev: "ERROR" (gan nhu chac chan la loi) | "WARN" (nghi van, can xac nhan)
 from collections import namedtuple, Counter
 
 from .geometry import (solid_face_table, is_solid, is_skin, skin_corner_count,
-                       centroid, dist, sub, cross, dot, unit, Grid, cluster_points)
+                       centroid, dist, sub, cross, dot, unit, tri_area,
+                       Grid, cluster_points)
 
 Finding = namedtuple("Finding", "sev check file line msg")
 
@@ -20,9 +21,10 @@ CK_SHARE = "6. SHARE NODE"
 CK_GEOM = "7. HINH HOC CONTACT/SURFACE"
 CK_OFF = "8. SETUP DANG TAT (comment)"
 CK_STEP = "9. TONG QUAN STEP"
+CK_GROUP = "10. GROUP CONTACT/TIE (so khop 2 phia)"
 
 CHECK_ORDER = [CK_STRUCT, CK_SYMBOL, CK_PARAM, CK_SECTION, CK_LOAD,
-               CK_SHARE, CK_GEOM, CK_OFF, CK_STEP]
+               CK_SHARE, CK_GEOM, CK_GROUP, CK_OFF, CK_STEP]
 
 
 def _fmt_pt(p):
@@ -79,12 +81,12 @@ def _missing_refs(F, refs, defined, kind, extra=frozenset()):
                          % (kind, name, ctx, ", +%d cho khac" % (n - 1) if n > 1 else "")))
 
 
-def _unused(F, defined_names, refs, kind, skip=frozenset()):
+def _unused(F, defined_names, refs, kind, skip=frozenset(), sev="INFO"):
     used = set(name for name, _c, _f, _l in refs)
     unused = sorted(n for n in defined_names if n not in used and n not in skip)
     if unused:
         shown = ", ".join(unused[:15]) + (" ..." if len(unused) > 15 else "")
-        F.append(Finding("INFO", CK_SYMBOL, "", 0,
+        F.append(Finding(sev, CK_SYMBOL, "", 0,
                          "%d %s dinh nghia nhung khong ai tham chieu: %s"
                          % (len(unused), kind, shown)))
 
@@ -122,8 +124,9 @@ def check_symbols(model):
             F.append(Finding("WARN", CK_SYMBOL, f, l,
                              "SURFACE '%s' dinh nghia %d lan (lan dau: %s:%d)"
                              % (name, len(surf.defs), surf.defs[0][0], surf.defs[0][1])))
-    # ---- dinh nghia khong dung ----
-    _unused(F, m.surfaces, m.surface_refs, "SURFACE")
+    # ---- dinh nghia khong dung (surface = group -> WARN theo yeu cau) ----
+    _unused(F, m.surfaces, m.surface_refs, "SURFACE (group assign ma khong dung)",
+            sev="WARN")
     _unused(F, m.interactions, m.interaction_refs, "SURFACE INTERACTION")
     _unused(F, m.materials, m.material_refs, "MATERIAL")
     _unused(F, m.nsets, m.nset_refs, "NSET")
@@ -801,6 +804,145 @@ def check_geometry(model, gap_tol=None, coin_tol=None, pen_tol=None):
                                  "doi nhau (lech toi da ~%.4g) quanh %s (vd elem %d) - 2 khoi da "
                                  "share node noi khac nhung cho nay bien dang KHONG KHOP, ghep bi xot?"
                                  % (key2[0], key2[1], vung_j, len(cl), dmaxj, _fmt_pt(cc), e0)))
+    return F
+
+
+# ==================================================================== #
+# 10. GROUP CONTACT/TIE - so khop 2 phia
+# ==================================================================== #
+def _surface_area_stats(m, faces):
+    """(n_tri, n_quad, tong dien tich) cua list face (key, ordered, eid)."""
+    n_tri = n_quad = 0
+    area = 0.0
+    for _key, ordered, _eid in faces:
+        pts = [m.nodes[n] for n in ordered if n in m.nodes]
+        if len(pts) < 3:
+            continue
+        if len(pts) == 3:
+            n_tri += 1
+            area += tri_area(pts[0], pts[1], pts[2])
+        else:
+            n_quad += 1
+            area += tri_area(pts[0], pts[1], pts[2]) + tri_area(pts[0], pts[2], pts[3])
+    return n_tri, n_quad, area
+
+
+def _breakdown(n_tri, n_quad):
+    parts = []
+    if n_tri:
+        parts.append("%d tri" % n_tri)
+    if n_quad:
+        parts.append("%d quad" % n_quad)
+    return " + ".join(parts) or "0 mat"
+
+
+def check_groups(model):
+    m = model
+    F = []
+    cache = {}
+
+    def faces_of(name):
+        if name not in cache:
+            surf = m.surfaces.get(name)
+            if surf is not None and surf.kind == "ELEMENT":
+                cache[name] = _resolve_surface_faces(m, surf)
+            else:
+                cache[name] = None  # analytical / node-based / khong ton tai
+        return cache[name]
+
+    pairs = [(sl, ms, "CONTACT PAIR", f, l)
+             for sl, ms, _i, _s, f, l in m.contact_pairs]
+    pairs += [(sl, ms, "TIE %s" % (nm or ""), f, l)
+              for nm, sl, ms, _p, _s, f, l in m.ties]
+
+    for sl, ms, label, f, l in pairs:
+        sf = faces_of(sl)
+        mf = faces_of(ms)
+        # group rong / stale trong pair -> nghiem trong
+        for name, faces in ((sl, sf), (ms, mf)):
+            surf = m.surfaces.get(name)
+            if surf is not None and surf.kind == "ELEMENT" and not faces:
+                F.append(Finding("ERROR", CK_GROUP, f, l,
+                                 "%s: group '%s' trong pair khong resolve duoc mat nao "
+                                 "(rong hoac stale sau remesh)" % (label, name)))
+        if not sf or not mf:
+            continue  # analytical / rong da bao o tren
+        ts, qs, a_s = _surface_area_stats(m, sf)
+        tm, qm, a_m = _surface_area_stats(m, mf)
+        n_s = ts + qs
+        n_m = tm + qm
+        if a_m <= 0:
+            continue
+        ratio = a_s / a_m
+        note = ""
+        if n_s != n_m and abs(ratio - 1.0) <= 0.05:
+            note = " -> so mat lech nhung DIEN TICH KHOP: do chia loai mat khac nhau (hop ly)"
+        elif ratio < 0.98:
+            note = " (master rong hon slave - thuong la co y)"
+        F.append(Finding("INFO", CK_GROUP, f, l,
+                         "%s %s<->%s: slave %s (dt %.6g) | master %s (dt %.6g) | "
+                         "ti le dt slave/master = %.3f%s"
+                         % (label, sl, ms, _breakdown(ts, qs), a_s,
+                            _breakdown(tm, qm), a_m, ratio, note)))
+        if ratio > 1.02:
+            F.append(Finding("WARN", CK_GROUP, f, l,
+                             "%s %s<->%s: dien tich slave (%.6g) LON HON master (%.6g) "
+                             "%.1f%% - master hut/chon thieu element?"
+                             % (label, sl, ms, a_s, a_m, (ratio - 1.0) * 100.0)))
+        if label.startswith("TIE") and abs(ratio - 1.0) > 0.05:
+            F.append(Finding("WARN", CK_GROUP, f, l,
+                             "%s %s<->%s: TIE nhung dien tich 2 phia lech %.1f%% "
+                             "- vung tie 2 ben phai trum nhau, kiem tra chon element"
+                             % (label, sl, ms, abs(ratio - 1.0) * 100.0)))
+        # khuyen nghi slave = luoi min
+        if n_s and n_m:
+            avg_s = a_s / n_s
+            avg_m = a_m / n_m
+            if avg_s > 2.5 * avg_m:
+                F.append(Finding("INFO", CK_GROUP, f, l,
+                                 "%s %s<->%s: luoi slave THO hon master ~%.1f lan "
+                                 "- thong thuong nen de luoi min lam slave"
+                                 % (label, sl, ms, avg_s / avg_m)))
+
+    # ---- surface bi tach thanh nhieu mang roi rac (chon nham/sot element) ----
+    for name in sorted(m.surfaces):
+        faces = faces_of(name)
+        if not faces or len(faces) < 2:
+            continue
+        edge_map = {}
+        for i, (_key, ordered, _eid) in enumerate(faces):
+            for e in _face_edges(ordered):
+                edge_map.setdefault(e, []).append(i)
+        adj = [[] for _ in faces]
+        for e, idxs in edge_map.items():
+            for i in range(len(idxs)):
+                for j in range(i + 1, len(idxs)):
+                    adj[idxs[i]].append(idxs[j])
+                    adj[idxs[j]].append(idxs[i])
+        seen = [False] * len(faces)
+        comps = []
+        for start in range(len(faces)):
+            if seen[start]:
+                continue
+            stack = [start]
+            seen[start] = True
+            size = 0
+            while stack:
+                cur = stack.pop()
+                size += 1
+                for nb in adj[cur]:
+                    if not seen[nb]:
+                        seen[nb] = True
+                        stack.append(nb)
+            comps.append(size)
+        if len(comps) > 1:
+            comps.sort(reverse=True)
+            F.append(Finding("WARN", CK_GROUP, "", 0,
+                             "SURFACE '%s': bi tach thanh %d mang roi rac (kich thuoc: %s) "
+                             "- chon nham element o xa hoac sot element noi giua?"
+                             % (name, len(comps),
+                                ", ".join(str(x) for x in comps[:8])
+                                + (" ..." if len(comps) > 8 else ""))))
     return F
 
 

@@ -39,6 +39,11 @@ EXPECTED = [
     ("VUNG XUYEN THAU", "2 mat contact cat nhau (lech bien dang)"),
     ("GHEP SHARE-NODE KHONG KHOP BLOCK_I <-> BLOCK_J",
      "ghep share-node lech bien dang, khong can contact pair"),
+    ("group 's_stale' trong pair khong resolve duoc mat nao",
+     "group rong/stale nam trong pair -> ERROR"),
+    ("LON HON master", "dien tich slave > master (master hut)"),
+    ("bi tach thanh 2 mang roi rac", "surface tach mang (chon sot/nham element)"),
+    ("ti le dt slave/master", "thong ke dien tich 2 phia moi pair"),
 ]
 
 

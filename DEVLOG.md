@@ -58,8 +58,14 @@
 - Fixture BLOCK_I/J (tầng dưới share OK, tầng trên lệch 0.05) → bắt đúng vị trí, lech ~0.025; G/H (contact, không share) không bị báo → 22/22 PASS.
 - Lưu ý: 7f cũng bắt lại vùng của share-node check (A/B) và 7d (E/F) — trùng lặp có chủ đích, 3 lăng kính cùng chỉ 1 chỗ lỗi.
 
+## 2026-07-10 (tối, tiếp 6) — Nhóm 10: GROUP CONTACT/TIE (so khớp 2 phía)
+
+- Theo yêu cầu user (check group): (a) group rỗng/stale TRONG pair → ERROR; (b) so 2 phía mỗi pair bằng số mặt + loại tri/quad + **DIỆN TÍCH** — "logic đằng sau" số element lệch: 320 tri vs 160 quad diện tích khớp → note hợp lý; TIE lệch diện tích >5% → WARN; slave > master → WARN master hụt; (c) đề xuất thêm: surface tách **mảng rời rạc** (BFS kề cạnh — bắt chọn nhầm element ở xa, cũng là lăng kính khác của lỗ thủng); (d) lưới slave thô hơn master ~2.5x → INFO khuyến nghị đổi vai; unused SURFACE nâng INFO→WARN.
+- Analytical/node surface trong pair → bỏ qua thống kê (không có mặt).
+- Test 26/26 PASS. Lưu ý trên deck thật: s_npin* (KnockPin đang comment) sẽ ra WARN unused — đúng chủ đích.
+
 ### Next
-1. Chạy lại trên deck K12E thật → xác nhận phân loại share-node + 7d/7e/7f trên mặt cong thật (bore/bush). 7f trên model thật có thể ồn nếu có khe thiết kế < 1 cạnh element giữa 2 khối share-node — nếu ồn thì hạ prox hoặc thêm ngưỡng --join-tol. Verify double-click sakura.
+1. Chạy lại trên deck K12E thật → xác nhận phân loại share-node + 7d/7e/7f + nhóm 10 (đặc biệt tỉ lệ diện tích các cặp bolt/bore thật). 7f có thể ồn nếu có khe thiết kế < 1 cạnh element giữa 2 khối share-node — nếu ồn thêm --join-tol. Verify double-click sakura.
 2. Cân nhắc: diff cấu trúc cp0 vs cp1 (so pair-by-pair 2 file contact); cảnh báo mtime mesh mới hơn odb của *INITIAL CONDITIONS; GUI thêm nút re-run 1 nhóm check riêng.
 
 ## 2026-07-10 — Khởi tạo repo

@@ -75,6 +75,11 @@ def unit(v):
     return (v[0] / l, v[1] / l, v[2] / l)
 
 
+def tri_area(a, b, c):
+    v = cross(sub(b, a), sub(c, a))
+    return 0.5 * math.sqrt(dot(v, v))
+
+
 class Grid(object):
     """Spatial hash don gian: chia khong gian thanh o vuong canh `cell`."""
 
