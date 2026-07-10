@@ -78,7 +78,7 @@ def main(argv=None):
     if not args.no_geom:
         print("Dang check hinh hoc contact/surface...")
         findings += C.check_geometry(m, gap_tol=args.gap_tol, pen_tol=args.pen_tol)
-    findings += C.check_groups(m)
+    findings += C.check_groups(m, gap_tol=args.gap_tol)
     findings += C.check_commented(reader)
     findings += C.step_report(m)
 

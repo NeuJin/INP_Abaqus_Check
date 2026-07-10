@@ -836,9 +836,45 @@ def _breakdown(n_tri, n_quad):
     return " + ".join(parts) or "0 mat"
 
 
-def check_groups(model):
+def _coverage_frac(m, src_faces, dst_faces, gap):
+    """% mat cua src co mat dst doi dien trong khoang `gap` (khong xet dau)."""
+    dst_geo = []
+    rmax = 0.0
+    for _key, ordered, _eid in dst_faces:
+        g = _face_geo(m, ordered)
+        if g:
+            dst_geo.append(g)
+            if g[1] > rmax:
+                rmax = g[1]
+    if not dst_geo:
+        return 0.0
+    grid = Grid(rmax + gap)
+    for c, r, nrm in dst_geo:
+        grid.add(c, (r, nrm, c))
+    covered = 0
+    total = 0
+    for _key, ordered, _eid in src_faces:
+        g = _face_geo(m, ordered)
+        if not g:
+            continue
+        total += 1
+        cs = g[0]
+        for cm, (r_m, n_m, c_m) in grid.near(cs):
+            v = sub(cs, c_m)
+            d_n = abs(dot(v, n_m))
+            if d_n > gap:
+                continue
+            if dot(v, v) - d_n * d_n <= (r_m * 1.25) ** 2:
+                covered += 1
+                break
+    return covered / total if total else 0.0
+
+
+def check_groups(model, gap_tol=None):
     m = model
     F = []
+    if gap_tol is None:
+        gap_tol = 0.2 * m.median_edge
     cache = {}
 
     def faces_of(name):
@@ -884,16 +920,39 @@ def check_groups(model):
                          "ti le dt slave/master = %.3f%s"
                          % (label, sl, ms, _breakdown(ts, qs), a_s,
                             _breakdown(tm, qm), a_m, ratio, note)))
-        if ratio > 1.02:
-            F.append(Finding("WARN", CK_GROUP, f, l,
-                             "%s %s<->%s: dien tich slave (%.6g) LON HON master (%.6g) "
-                             "%.1f%% - master hut/chon thieu element?"
-                             % (label, sl, ms, a_s, a_m, (ratio - 1.0) * 100.0)))
-        if label.startswith("TIE") and abs(ratio - 1.0) > 0.05:
-            F.append(Finding("WARN", CK_GROUP, f, l,
-                             "%s %s<->%s: TIE nhung dien tich 2 phia lech %.1f%% "
-                             "- vung tie 2 ben phai trum nhau, kiem tra chon element"
-                             % (label, sl, ms, abs(ratio - 1.0) * 100.0)))
+        area_anomaly = (ratio > 1.02) or (label.startswith("TIE")
+                                          and abs(ratio - 1.0) > 0.05)
+        if area_anomaly:
+            # phan biet: lech do tiling/loai element (van phu nhau du) hay thieu that
+            gap_eff = gap_tol
+            for _nm, tsl, tms, pt, _st, _f2, _l2 in m.ties:
+                if tsl == sl and tms == ms and pt is not None:
+                    gap_eff = pt
+                    break
+            f_sm = _coverage_frac(m, sf, mf, gap_eff)   # slave duoc master phu
+            f_ms = _coverage_frac(m, mf, sf, gap_eff)   # master nam tren slave
+            if min(f_sm, f_ms) >= 0.8:
+                F.append(Finding("INFO", CK_GROUP, f, l,
+                                 "%s %s<->%s: dien tich lech %.1f%% NHUNG 2 phia van phu "
+                                 "nhau (slave duoc phu %.0f%%, master %.0f%%) -> loai "
+                                 "element/tiling khac nhau (hop le)"
+                                 % (label, sl, ms, abs(ratio - 1.0) * 100.0,
+                                    f_sm * 100.0, f_ms * 100.0)))
+            elif ratio > 1.02:
+                F.append(Finding("WARN", CK_GROUP, f, l,
+                                 "%s %s<->%s: dien tich slave (%.6g) LON HON master (%.6g) "
+                                 "%.1f%% VA do phu chi dat slave %.0f%% / master %.0f%% "
+                                 "- master hut/chon thieu element?"
+                                 % (label, sl, ms, a_s, a_m,
+                                    (ratio - 1.0) * 100.0,
+                                    f_sm * 100.0, f_ms * 100.0)))
+            else:
+                F.append(Finding("WARN", CK_GROUP, f, l,
+                                 "%s %s<->%s: TIE nhung dien tich 2 phia lech %.1f%% VA do "
+                                 "phu chi dat slave %.0f%% / master %.0f%% - vung tie 2 ben "
+                                 "phai trum nhau, kiem tra chon element"
+                                 % (label, sl, ms, abs(ratio - 1.0) * 100.0,
+                                    f_sm * 100.0, f_ms * 100.0)))
         # khuyen nghi slave = luoi min
         if n_s and n_m:
             avg_s = a_s / n_s
@@ -943,6 +1002,38 @@ def check_groups(model):
                              % (name, len(comps),
                                 ", ".join(str(x) for x in comps[:8])
                                 + (" ..." if len(comps) > 8 else ""))))
+
+    # ---- 2 group dung chung mat (vung contact chong len nhau) ----
+    used_names = set()
+    for sl, ms, _label, _f, _l in pairs:
+        used_names.add(sl)
+        used_names.add(ms)
+    face_owners = {}
+    for name in sorted(used_names):
+        faces = faces_of(name)
+        if not faces:
+            continue
+        for key, _ordered, eid in faces:
+            face_owners.setdefault(key, {})[name] = eid
+    overlap = {}   # (nameA, nameB) -> [so mat chung, vd eid]
+    for key, owners in face_owners.items():
+        if len(owners) < 2:
+            continue
+        names = sorted(owners)
+        for i in range(len(names)):
+            for j in range(i + 1, len(names)):
+                k2 = (names[i], names[j])
+                rec = overlap.get(k2)
+                if rec is None:
+                    overlap[k2] = [1, owners[names[i]]]
+                else:
+                    rec[0] += 1
+    for (na, nb), (n, eid0) in sorted(overlap.items()):
+        F.append(Finding("WARN", CK_GROUP, "", 0,
+                         "GROUP CHONG NHAU: '%s' va '%s' dung chung %d mat (vd elem %d) "
+                         "- 2 vung contact chong len nhau, solver co the double-count "
+                         "(neu 1 group la tap con co chu dich thi xac nhan)"
+                         % (na, nb, n, eid0)))
     return F
 
 

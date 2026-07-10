@@ -44,6 +44,9 @@ EXPECTED = [
     ("LON HON master", "dien tich slave > master (master hut)"),
     ("bi tach thanh 2 mang roi rac", "surface tach mang (chon sot/nham element)"),
     ("ti le dt slave/master", "thong ke dien tich 2 phia moi pair"),
+    ("GROUP CHONG NHAU: 's_top_B' va 's_top_B2'", "2 group dung chung mat"),
+    ("loai element/tiling khac nhau (hop le)",
+     "dien tich lech nhung phu nhau du -> hop le (tile co khe)"),
 ]
 
 

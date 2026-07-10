@@ -64,8 +64,14 @@
 - Analytical/node surface trong pair → bỏ qua thống kê (không có mặt).
 - Test 26/26 PASS. Lưu ý trên deck thật: s_npin* (KnockPin đang comment) sẽ ra WARN unused — đúng chủ đích.
 
+## 2026-07-10 (tối, tiếp 7) — Nhóm 10 nâng cấp: độ phủ tương hỗ + GROUP CHỒNG NHAU
+
+- User gửi ảnh master dạng TILE SURFACE_ELEMENT có khe (bearing): diện tích 2 phía lệch là HỢP LỆ. Giải pháp phân biệt: khi diện tích lệch → đo **độ phủ tương hỗ** (`_coverage_frac` 2 chiều, gap = 0.2×edge hoặc POSITION TOLERANCE của tie): cả 2 phía phủ nhau ≥80% → INFO "loai element/tiling khac nhau (hop le)"; độ phủ hụt → WARN thiếu element thật (kèm % phủ 2 phía).
+- Ý tưởng (1) đã làm: **GROUP CHONG NHAU** — mặt xuất hiện trong ≥2 group đang tham gia pair → WARN double-count (kèm ghi chú "tập con có chủ đích thì xác nhận").
+- Fixture: BLOCK_K (4 mặt top) + MK_TILES (4 tấm M3D4 0.8×0.8 có khe, dt 2.56 vs 4.0 = lệch 56%) → ra INFO hợp lệ với phủ 100/100; s_top_B2 chồng mặt 202 với s_top_B → WARN. Test 28/28 PASS.
+
 ### Next
-1. Chạy lại trên deck K12E thật → xác nhận phân loại share-node + 7d/7e/7f + nhóm 10 (đặc biệt tỉ lệ diện tích các cặp bolt/bore thật). 7f có thể ồn nếu có khe thiết kế < 1 cạnh element giữa 2 khối share-node — nếu ồn thêm --join-tol. Verify double-click sakura.
+1. Chạy lại trên deck K12E thật → cặp s_SEbore↔s_pinse (2532 tri vs 1440 tile) giờ phải ra INFO "hop le" thay vì WARN. Verify các nhóm 6/7d/7e/7f + double-click sakura.
 2. Cân nhắc: diff cấu trúc cp0 vs cp1 (so pair-by-pair 2 file contact); cảnh báo mtime mesh mới hơn odb của *INITIAL CONDITIONS; GUI thêm nút re-run 1 nhóm check riêng.
 
 ## 2026-07-10 — Khởi tạo repo

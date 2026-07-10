@@ -371,7 +371,7 @@ class App(object):
             F += C.check_shared_nodes(self.model, tol)
             if not self.var_nogeom.get():
                 F += C.check_geometry(self.model, gap_tol=gap)
-            F += C.check_groups(self.model)
+            F += C.check_groups(self.model, gap_tol=gap)
             F += C.check_commented(self.reader)
             F += C.step_report(self.model)
             self.q.put(("checked", F, time.time() - t0))

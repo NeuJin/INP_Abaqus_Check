@@ -24,6 +24,17 @@
 601, S2
 *SURFACE, NAME=s_bot_H, TYPE=ELEMENT
 701, S1
+** s_top_B2 CHONG mat voi s_top_B (dung chung 202,S2) - contact chong vung
+*SURFACE, NAME=s_top_B2, TYPE=ELEMENT
+202, S2
+** cap tile: dien tich lech nhung phu nhau day du -> hop le
+*SURFACE, NAME=s_top_K, TYPE=ELEMENT
+811, S2
+812, S2
+813, S2
+814, S2
+*SURFACE, NAME=s_tile_K, TYPE=ELEMENT
+MK_TILES, SPOS
 *SURFACE INTERACTION, NAME=FRICT_test
 1.0,
 *FRICTION
@@ -34,6 +45,10 @@ s_top_B, s_bot_C
 s_side_A, s_side_D
 *CONTACT PAIR, INTERACTION=FRICT_test, ADJUST=0.1
 s_top_G, s_bot_H
+*CONTACT PAIR, INTERACTION=FRICT_test
+s_top_B2, s_bot_C
+*CONTACT PAIR, INTERACTION=FRICT_test, SMALL SLIDING
+s_top_K, s_tile_K
 ** contact tro surface + interaction khong ton tai
 *CONTACT PAIR, INTERACTION=FRICT_missing
 s_top_A, s_ghost
@@ -48,6 +63,9 @@ s_stale, s_top_A
 *SOLID SECTION, ELSET=BLOCK_H, MATERIAL=STEEL
 *SOLID SECTION, ELSET=BLOCK_I, MATERIAL=STEEL
 *SOLID SECTION, ELSET=BLOCK_J, MATERIAL=STEEL
+*SOLID SECTION, ELSET=BLOCK_K, MATERIAL=STEEL
+*MEMBRANE SECTION, ELSET=MK_TILES, MATERIAL=STEEL
+0.001,
 ** BLOCK_B co y KHONG co section
 *MATERIAL, NAME=STEEL
 *ELASTIC, TYPE=ISO
