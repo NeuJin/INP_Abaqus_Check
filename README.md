@@ -19,7 +19,18 @@ Bố cục mô phỏng HyperMesh 14 cho quen mắt:
 - **Trái — Model browser**: cây entity (Files/Components/Node Sets/Surfaces/Contact/Materials/Parameters/Steps) với ô màu component + cột ID/Count; file include thiếu tô **đỏ** ngay trên cây.
 - **Dưới trái — bảng Name/Value**: click entity là thấy chi tiết (element count, type, section, material, định nghĩa ở file:dòng nào) — giống property table của HM.
 - **Phải — Check Results**: 9 nhóm check, **LỖI đỏ / CẢNH BÁO cam / info xám**, cột vị trí `file:dòng`; lọc theo mức bằng checkbox; click finding → panel chi tiết + nút **Copy vị trí**.
-- **Double-click** (finding hoặc entity trên cây) → **mở sakura ngay tại dòng đó** (`sakura -Y=<dòng>`). Tool tự dò sakura.exe (PATH / thư mục cài chuẩn / registry); không thấy thì hỏi đường dẫn **một lần** rồi nhớ vào `gui_config.json`; không có sakura thì fallback mở bằng editor mặc định của Windows.
+- **Double-click** (finding hoặc entity trên cây) → **mở sakura ngay tại dòng đó** (`sakura -Y=<dòng>`). Lưu ý: chỉ dòng nào có cột **Vị trí** (file:dòng) mới mở được — các dòng VÙNG share node/hình học không gắn file, dùng tọa độ trong message để tìm trong HyperMesh.
+
+### Chỉ định đường dẫn sakura (nếu double-click không bật editor)
+
+Thứ tự tool tìm editor, cái nào có trước dùng cái đó:
+
+1. **`gui_config.json`** nằm cạnh `inp_check_gui.py` — cách chắc nhất, bấm nút **"Editor..."** trên toolbar để chọn `sakura.exe`, tool tự ghi file này. Hoặc tự tạo file với nội dung (dùng `/` hoặc `\\\\`):
+   ```json
+   {"editor": "F:/Software/Sakura/Sakura/sakura-v2.4.1/sakura.exe"}
+   ```
+2. Tự dò: `sakura` trong PATH → `F:\Software\Sakura\Sakura\sakura-v2.4.1\sakura.exe` → `C:\Program Files (x86)\sakura\` → App Paths registry (danh sách hardcode nằm trong hàm `_detect_sakura()` đầu file `inp_check_gui.py` — thêm đường dẫn máy bạn vào đó cũng được).
+3. Không thấy gì → lần double-click đầu sẽ hiện dialog hỏi; Cancel thì mở bằng editor mặc định Windows (không nhảy dòng).
 - Toolbar: chọn `tol` / `gap-tol` / bỏ qua check hình học, nút **Xuất báo cáo** ra file text.
 - Parse và check chạy nền (thread) — deck 1 triệu dòng không treo giao diện.
 

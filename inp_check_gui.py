@@ -164,6 +164,8 @@ class App(object):
         self.var_nogeom = tk.BooleanVar(value=False)
         ttk.Checkbutton(bar, text="Bo qua check hinh hoc",
                         variable=self.var_nogeom).pack(side="left", padx=8)
+        ttk.Button(bar, text="Editor...",
+                   command=self.on_set_editor).pack(side="right", padx=6, pady=3)
 
     def _build_body(self):
         paned = ttk.Panedwindow(self.root, orient="horizontal")
@@ -410,6 +412,20 @@ class App(object):
             self._set_status("Da copy: %s" % loc)
 
     # ------------------------------------------------- mo editor ------
+    def on_set_editor(self):
+        """Nut Editor... tren toolbar: chi dinh sakura.exe, luu gui_config.json."""
+        cur = self.editor_path or "(chua co)"
+        p = filedialog.askopenfilename(
+            title="Chon sakura.exe (hien tai: %s)" % cur,
+            filetypes=[("Executable", "*.exe"), ("Tat ca", "*.*")])
+        if p:
+            self.editor_path = p
+            self.config["editor"] = p
+            _save_config(self.config)
+            self._set_status("Editor: %s (da luu vao gui_config.json)" % p)
+        else:
+            self._set_status("Editor hien tai: %s" % cur)
+
     def _ask_editor(self):
         """Hoi duong dan sakura.exe 1 lan, luu vao gui_config.json."""
         messagebox.showinfo(
@@ -453,16 +469,27 @@ class App(object):
 
     def on_dbl_finding(self, _ev=None):
         sel = self.res.selection()
-        if sel:
-            fd = self.finding_map.get(sel[0])
-            if fd and fd.file:
-                self._open_editor(fd.file, fd.line)
+        if not sel:
+            return
+        fd = self.finding_map.get(sel[0])
+        if fd is None:
+            return  # dong header nhom
+        if fd.file:
+            self._open_editor(fd.file, fd.line)
+        else:
+            self._set_status(
+                "Finding nay khong gan voi dong file cu the (cot 'Vi tri' rong) "
+                "- vd VUNG share node: dung toa do trong message de tim trong HyperMesh")
 
     def on_dbl_entity(self, _ev=None):
         sel = self.tree.selection()
-        if sel and sel[0] in self.loc_map:
+        if not sel:
+            return
+        if sel[0] in self.loc_map:
             f, l = self.loc_map[sel[0]]
             self._open_editor(f, l)
+        else:
+            self._set_status("Muc nay khong co vi tri file de mo")
 
     # ------------------------------------------------------ populate --
     def _poll_queue(self):
