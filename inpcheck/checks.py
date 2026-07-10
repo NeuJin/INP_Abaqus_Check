@@ -630,6 +630,67 @@ def check_geometry(model, gap_tol=None, coin_tol=None):
                              "MAT AP NHAU ngoai moi surface: VUNG %d co %d cap mat quanh %s "
                              "(%s <-> %s, vd elem %d/%d) - mat share node hoac quen khai contact?"
                              % (ci, len(idxs), _fmt_pt(c), ea or "?", eb or "?", ea_id, eb_id)))
+
+    # ---- 7d. PATTERN MISMATCH tai mat tiep giap share-node ----
+    # 2 khoi share node nhung chia tam giac theo duong cheo khac nhau:
+    # mat khop pattern -> count==2 (mat trong); mat lech pattern -> mat TU DO
+    # o CA 2 phia ma toan bo node cua mat deu la node dung chung 2 component.
+    node_elsets = {}
+    for eid, (etype, nds) in m.elements.items():
+        es = m.elem_elset.get(eid, "") or "?"
+        for nid in nds:
+            s = node_elsets.get(nid)
+            if s is None:
+                node_elsets[nid] = {es}
+            else:
+                s.add(es)
+    mis = {}  # frozenset((A,B)) -> list (centroid, owner_elset, eid, S#)
+    for key, (cnt, eid, fi) in face_map.items():
+        if cnt != 1 or key in all_surf_keys:
+            continue
+        E = m.elem_elset.get(eid, "") or "?"
+        sets = [node_elsets.get(nid) for nid in key]
+        if any(s is None for s in sets):
+            continue
+        common = set(sets[0])
+        for s in sets[1:]:
+            common &= s
+            if len(common) <= 1:
+                break
+        others = common - {E}
+        if not others:
+            continue
+        etype, nds = m.elements[eid]
+        ft = solid_face_table(etype)
+        ordered = tuple(nds[i] for i in ft[fi])
+        g = _face_geo(m, ordered)
+        if not g:
+            continue
+        for B in others:
+            mis.setdefault(frozenset((E, B)), []).append((g[0], E, eid, fi + 1))
+    vung_mm = 0
+    for pk in sorted(mis, key=lambda k: tuple(sorted(k))):
+        items = mis[pk]
+        if len(set(o for _c, o, _e, _s in items)) < 2:
+            continue  # can bang chung tu CA 2 phia moi ket luan
+        pts = [c for c, _o, _e, _s in items]
+        for cl in cluster_points(pts, 3.0 * m.median_edge):
+            owners = {}
+            for i in cl:
+                owners.setdefault(items[i][1], items[i])
+            if len(owners) < 2:
+                continue
+            vung_mm += 1
+            c = centroid([pts[i] for i in cl])
+            (na, nb) = sorted(owners)
+            ea = owners[na]
+            eb = owners[nb]
+            F.append(Finding("ERROR", CK_GEOM, "", 0,
+                             "PATTERN MISMATCH %s <-> %s: VUNG %d co %d mat tu do tai vung "
+                             "share-node quanh %s (vd elem %d S%d / elem %d S%d) - 2 ben chia "
+                             "tam giac theo duong cheo KHAC NHAU, mat tiep giap khong lien tuc"
+                             % (na, nb, vung_mm, len(cl), _fmt_pt(c),
+                                ea[2], ea[3], eb[2], eb[3])))
     return F
 
 

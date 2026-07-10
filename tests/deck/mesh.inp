@@ -51,6 +51,14 @@
     46, 4.0, 1.0, 0.0
     47, 4.0, 0.0, 1.0
     48, 4.0, 1.0, 1.0
+** BLOCK_E/BLOCK_F: PATTERN MISMATCH co chu dich - share du 4 node quad (51..54)
+** nhung E chia tam giac theo cheo 51-53, F chia theo cheo 52-54
+    51, 0.0, 0.0, 10.0
+    52, 1.0, 0.0, 10.0
+    53, 1.0, 1.0, 10.0
+    54, 0.0, 1.0, 10.0
+    55, 0.5, 0.5,  9.0
+    56, 0.5, 0.5, 11.0
 ** node nhan luc dung rieng (khong thuoc element nao)
   9001, 99.0, 99.0, 99.0
 *ELEMENT,TYPE=C3D8,ELSET=BLOCK_A
@@ -67,3 +75,9 @@
    302,      26,      27,      30,      29,      32,      33,      36,      35
 *ELEMENT,TYPE=C3D8,ELSET=BLOCK_D
    401,      41,      45,      46,      42,      43,      47,      48,      44
+*ELEMENT,TYPE=C3D4,ELSET=BLOCK_E
+   501,      51,      52,      53,      55
+   502,      51,      53,      54,      55
+*ELEMENT,TYPE=C3D4,ELSET=BLOCK_F
+   503,      51,      52,      54,      56
+   504,      52,      53,      54,      56

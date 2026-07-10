@@ -35,8 +35,16 @@
 - Đổi cách gom vùng: nhóm theo CẶP ELSET trước rồi mới cluster không gian → Upper↔Lower không bị trộn với Bush↔Bore dù sát nhau.
 - Test deck thêm BLOCK_D (2 lớp node + contact s_side_A/s_side_D) → 18/18 PASS: vùng contact ra INFO, node 10/210 vẫn ERROR.
 
+## 2026-07-10 (tối, tiếp 3) — Check 7d: PATTERN MISMATCH tại mặt share-node
+
+- User yêu cầu (vẽ hình 2 cặp tam giác chia chéo ngược nhau): 2 khối share đủ node quad nhưng chia diagonal khác nhau → mặt tiếp giáp không liên tục.
+- Signature: mặt khớp pattern = count 2 (internal); mặt lệch = **mặt tự do (count 1) mà 100% node của mặt được cả 2 component dùng** + phải có bằng chứng từ CẢ 2 phía trong cùng cụm không gian → ERROR (độ tin cao, tránh false positive ở mép/exterior vì mặt ngoài luôn có ≥1 node riêng).
+- Cũng trong đợt này: nút **Editor...** trên toolbar (chọn sakura.exe, lưu `gui_config.json`), double-click dòng không có file:line giờ báo status thay vì im lặng (VUNG share-node không gắn file — dùng tọa độ tìm trong HM).
+- Test: fixture BLOCK_E/F (2 tetra pair chéo ngược, share node 51–54) → 19/19 PASS.
+- Hạn chế đã biết: 7d cần bằng chứng 2 phía nên KHÔNG bắt hanging-node (1 mặt to vs 4 mặt nhỏ, node giữa không share) — ứng viên check tương lai.
+
 ### Next
-1. Chạy lại trên deck K12E thật → xác nhận 19 vùng được phân loại đúng (kỳ vọng: đa số thành INFO, còn lại ERROR/WARN là chỗ cần sửa thật). Verify double-click nhảy đúng dòng trên máy có sakura.
+1. Chạy lại trên deck K12E thật → xác nhận các vùng share-node được phân loại đúng (kỳ vọng: đa số thành INFO có tên contact, còn lại ERROR là chỗ sửa thật) + xem 7d có báo vùng pattern mismatch nào. Verify double-click sakura (đã có nút Editor...).
 2. Cân nhắc: diff cấu trúc cp0 vs cp1 (so pair-by-pair 2 file contact); cảnh báo mtime mesh mới hơn odb của *INITIAL CONDITIONS; GUI thêm nút re-run 1 nhóm check riêng.
 
 ## 2026-07-10 — Khởi tạo repo

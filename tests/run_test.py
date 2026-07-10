@@ -34,6 +34,7 @@ EXPECTED = [
     ("nghi thieu element 102", "lo thung trong surface"),
     ("vd elem 203) - master thung/hut?", "mat slave khong duoc master phu"),
     ("vd elem 102/202", "cap mat tu do ap nhau ngoai surface"),
+    ("PATTERN MISMATCH BLOCK_E <-> BLOCK_F", "pattern mismatch tai mat share node"),
 ]
 
 
