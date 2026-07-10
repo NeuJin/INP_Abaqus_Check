@@ -49,7 +49,8 @@ def _detect_sakura():
     p = shutil.which("sakura")
     if p:
         return p
-    for c in (r"C:\Program Files (x86)\sakura\sakura.exe",
+    for c in (r"F:\Software\Sakura\Sakura\sakura-v2.4.1\sakura.exe",
+              r"C:\Program Files (x86)\sakura\sakura.exe",
               r"C:\Program Files\sakura\sakura.exe"):
         if os.path.isfile(c):
             return c
