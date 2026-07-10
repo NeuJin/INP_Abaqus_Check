@@ -44,6 +44,9 @@ def main(argv=None):
     ap.add_argument("inp", help="file .inp master (se tu lan theo *INCLUDE)")
     ap.add_argument("--tol", type=float, default=1e-4)
     ap.add_argument("--gap-tol", type=float, default=None)
+    ap.add_argument("--pen-tol", type=float, default=None,
+                    help="nguong bao xuyen thau giua 2 mat contact "
+                         "(mac dinh 0.1 x canh element dien hinh)")
     ap.add_argument("--no-geom", action="store_true")
     ap.add_argument("--report", default=None)
     ap.add_argument("--max-print", type=int, default=15)
@@ -74,7 +77,7 @@ def main(argv=None):
     findings += C.check_shared_nodes(m, args.tol)
     if not args.no_geom:
         print("Dang check hinh hoc contact/surface...")
-        findings += C.check_geometry(m, gap_tol=args.gap_tol)
+        findings += C.check_geometry(m, gap_tol=args.gap_tol, pen_tol=args.pen_tol)
     findings += C.check_commented(reader)
     findings += C.step_report(m)
 

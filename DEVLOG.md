@@ -43,8 +43,15 @@
 - Test: fixture BLOCK_E/F (2 tetra pair chéo ngược, share node 51–54) → 19/19 PASS.
 - Hạn chế đã biết: 7d cần bằng chứng 2 phía nên KHÔNG bắt hanging-node (1 mặt to vs 4 mặt nhỏ, node giữa không share) — ứng viên check tương lai.
 
+## 2026-07-10 (tối, tiếp 4) — Check 7e: LỆCH BIÊN DẠNG contact (penetration/gap có dấu)
+
+- User gửi ảnh 2 part mesh riêng tại vùng cong phức tạp: facet 2 bên tessellate khác nhau → lát xuyên/hở xen kẽ. Giải pháp: với mỗi cặp contact/tie, đo **khoảng cách có dấu** từ đỉnh+tâm mặt slave tới mặt master (pháp tuyến master hướng RA NGOÀI — xác định bằng tâm element, không tin thứ tự node); âm = xuyên, dương = hở.
+- Output: INFO thống kê từng cặp (xuyên sâu nhất/TB/hở lớn nhất — user so với clearance/interference thiết kế, vd mc_interferense=-0.0396) + WARN "VUNG XUYEN THAU" gom cụm khi sâu hơn `--pen-tol` (mặc định 0.1×cạnh element).
+- Master là membrane (skin) → bỏ phần dấu (không xác định được hướng ngoài).
+- Fixture G/H (mặt master nghiêng: xuyên 0.15/hở 0.25): đo ra −0.1393/+0.2321 = đúng giá trị chiếu theo pháp tuyến, vị trí đúng → 21/21 PASS.
+
 ### Next
-1. Chạy lại trên deck K12E thật → xác nhận các vùng share-node được phân loại đúng (kỳ vọng: đa số thành INFO có tên contact, còn lại ERROR là chỗ sửa thật) + xem 7d có báo vùng pattern mismatch nào. Verify double-click sakura (đã có nút Editor...).
+1. Chạy lại trên deck K12E thật → xác nhận phân loại share-node + xem 7d/7e trên mặt cong thật (bore/bush) — chú ý 7e trên mặt cong lớn: pháp tuyến facet xấp xỉ, ngưỡng pen-tol có thể cần nới. Verify double-click sakura (đã có nút Editor...).
 2. Cân nhắc: diff cấu trúc cp0 vs cp1 (so pair-by-pair 2 file contact); cảnh báo mtime mesh mới hơn odb của *INITIAL CONDITIONS; GUI thêm nút re-run 1 nhóm check riêng.
 
 ## 2026-07-10 — Khởi tạo repo

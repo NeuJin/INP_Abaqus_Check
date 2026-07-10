@@ -454,7 +454,7 @@ def _face_geo(m, ordered):
     return c, r, nrm
 
 
-def check_geometry(model, gap_tol=None, coin_tol=None):
+def check_geometry(model, gap_tol=None, coin_tol=None, pen_tol=None):
     m = model
     F = []
     if not m.elements:
@@ -463,6 +463,8 @@ def check_geometry(model, gap_tol=None, coin_tol=None):
         gap_tol = 0.2 * m.median_edge
     if coin_tol is None:
         coin_tol = max(1e-3, 0.01 * m.median_edge)
+    if pen_tol is None:
+        pen_tol = 0.1 * m.median_edge
 
     # ---- ban do mat: key -> [count, eid, face_idx] ----
     face_map = {}
@@ -546,18 +548,31 @@ def check_geometry(model, gap_tol=None, coin_tol=None):
         gap = postol if postol is not None else gap_tol
         mgeo = []
         rmax = 0.0
+        master_skin = False
         for key, ordered, eid in mf:
             g = _face_geo(m, ordered)
-            if g:
-                mgeo.append(g)
-                if g[1] > rmax:
-                    rmax = g[1]
+            if not g:
+                continue
+            c, r, nrm = g
+            el = m.elements.get(eid)
+            if el is not None and is_skin(el[0]):
+                master_skin = True  # membrane: khong biet huong ngoai -> bo phan dau
+            elif el is not None:
+                pts_e = [m.nodes[n] for n in el[1] if n in m.nodes]
+                if pts_e:
+                    ec = centroid(pts_e)
+                    if dot(nrm, sub(c, ec)) < 0.0:
+                        nrm = (-nrm[0], -nrm[1], -nrm[2])  # phap tuyen huong RA ngoai
+            mgeo.append((c, r, nrm))
+            if r > rmax:
+                rmax = r
         if not mgeo:
             continue
-        grid = Grid(rmax + gap)
+        grid = Grid(rmax + gap + pen_tol)
         for c, r, nrm in mgeo:
             grid.add(c, (r, nrm, c))
         uncovered = []
+        samples = []   # (diem tren slave, khoang cach co dau toi master)
         for key, ordered, eid in sf:
             g = _face_geo(m, ordered)
             if not g:
@@ -575,6 +590,19 @@ def check_geometry(model, gap_tol=None, coin_tol=None):
                     break
             if not ok:
                 uncovered.append((cs, eid))
+            # 7e. do khoang cach CO DAU tai dinh + tam mat slave (lech bien dang)
+            if not master_skin:
+                for p in [m.nodes[n] for n in ordered if n in m.nodes] + [cs]:
+                    best = None
+                    for cm, (r_m, n_m, c_m) in grid.near(p):
+                        v = sub(p, c_m)
+                        d_n = dot(v, n_m)
+                        inplane2 = dot(v, v) - d_n * d_n
+                        if inplane2 <= (r_m * 1.05) ** 2:
+                            if best is None or abs(d_n) < abs(best):
+                                best = d_n
+                    if best is not None:
+                        samples.append((p, best))
         if uncovered:
             frac = 100.0 * len(uncovered) / max(1, len(sf))
             if frac > 60.0:
@@ -592,6 +620,27 @@ def check_geometry(model, gap_tol=None, coin_tol=None):
                                      "%s %s<->%s: VUNG %d co %d mat slave KHONG duoc master phu "
                                      "quanh %s (vd elem %d) - master thung/hut?"
                                      % (label, slave, master, ci, len(idxs), _fmt_pt(c), eid0)))
+        # ---- 7e. LECH BIEN DANG: thong ke khoang cach co dau + vung xuyen thau ----
+        if samples:
+            dvals = [d for _p, d in samples]
+            dmin = min(dvals)
+            dmax = max(dvals)
+            davg = sum(dvals) / len(dvals)
+            F.append(Finding("INFO", CK_GEOM, f, l,
+                             "%s %s<->%s: lech bien dang mat-doi-mat: xuyen sau nhat %+.4g / "
+                             "trung binh %+.4g / ho lon nhat %+.4g (%d diem do; am=xuyen thau, "
+                             "duong=ho khe - so voi clearance/interference thiet ke)"
+                             % (label, slave, master, dmin, davg, dmax, len(samples))))
+            pen = [(p, d) for p, d in samples if d < -pen_tol]
+            if pen:
+                ppts = [p for p, _d in pen]
+                for ci, idxs in enumerate(cluster_points(ppts, 3.0 * m.median_edge)[:8], 1):
+                    c = centroid([ppts[i] for i in idxs])
+                    depth = min(pen[i][1] for i in idxs)
+                    F.append(Finding("WARN", CK_GEOM, f, l,
+                                     "%s %s<->%s: VUNG XUYEN THAU %d: 2 mat cat nhau sau toi da "
+                                     "%.4g quanh %s (%d diem) - 2 part chia luoi lech bien dang?"
+                                     % (label, slave, master, ci, -depth, _fmt_pt(c), len(idxs))))
 
     # ---- 7c. Mat tu do ap sat nhau NGOAI moi surface (mat share/quen contact) ----
     free = []
