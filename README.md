@@ -8,7 +8,23 @@ Bộ tool **validator cho deck Abaqus .inp** xuất từ HyperMesh — phát hi�
 
 ---
 
-## Tool chính: `inp_check.py`
+## GUI: `inp_check_gui.py` — giao diện kiểu HyperMesh
+
+```powershell
+python inp_check_gui.py                    # roi bam "Mo file .inp..."
+python inp_check_gui.py duong\dan\master.inp   # mo san file
+```
+
+Bố cục mô phỏng HyperMesh 14 cho quen mắt:
+- **Trái — Model browser**: cây entity (Files/Components/Node Sets/Surfaces/Contact/Materials/Parameters/Steps) với ô màu component + cột ID/Count; file include thiếu tô **đỏ** ngay trên cây.
+- **Dưới trái — bảng Name/Value**: click entity là thấy chi tiết (element count, type, section, material, định nghĩa ở file:dòng nào) — giống property table của HM.
+- **Phải — Check Results**: 9 nhóm check, **LỖI đỏ / CẢNH BÁO cam / info xám**, cột vị trí `file:dòng`; lọc theo mức bằng checkbox; click finding → panel chi tiết + nút **Copy vị trí** (dán vào editor để nhảy tới dòng).
+- Toolbar: chọn `tol` / `gap-tol` / bỏ qua check hình học, nút **Xuất báo cáo** ra file text.
+- Parse và check chạy nền (thread) — deck 1 triệu dòng không treo giao diện.
+
+Selftest không cần thao tác tay: `python inp_check_gui.py --selftest tests\deck\master.inp`
+
+## CLI: `inp_check.py`
 
 Đưa vào **file master**, tool tự lần theo toàn bộ `*INCLUDE` và chạy 9 nhóm check một lượt:
 
@@ -71,7 +87,8 @@ python check_shared_nodes.py model.inp [--tol 1e-4] [--csv report.csv]
 
 ```
 INP_Abaqus_Check/
-├── inp_check.py               # CLI chinh - chay 9 nhom check
+├── inp_check_gui.py           # GUI kieu HyperMesh (tkinter)
+├── inp_check.py               # CLI - chay 9 nhom check, dung duoc trong batch
 ├── inpcheck/
 │   ├── reader.py              # doc deck, resolve *INCLUDE, phan loai comment
 │   ├── model.py               # builder: keyword -> data model + refs

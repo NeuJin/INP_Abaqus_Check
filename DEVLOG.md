@@ -14,9 +14,16 @@
 - **Test**: `tests/deck/` cài sẵn 16 lỗi (include chết ×2, symbol ma ×4, surface stale, param ×2, section thiếu, BC/CLOAD node ma ×2, share node, lỗ thủng surface, master không phủ, mặt áp nhau) — `tests/run_test.py` PASS 16/16, không false positive trên deck test.
 - Message console toàn ASCII không dấu (tránh lỗi encoding console Nhật cp932).
 
+## 2026-07-10 (tối) — GUI kiểu HyperMesh `inp_check_gui.py`
+
+- tkinter, bố cục mô phỏng HM14: trái = Model browser (Treeview Entities|ID/Count, ô màu component bằng PhotoImage swatch, file include thiếu tô đỏ) + bảng Name/Value dưới trái (property table); phải = Check Results 9 nhóm (tag màu ERROR đỏ/WARN cam/info xám, cột vị trí file:dòng, filter checkbox, panel chi tiết + nút Copy vị trí — KHÔNG mở editor ngoài theo external-call policy); toolbar tol/gap-tol/no-geom + Xuất báo cáo.
+- Parse & check chạy thread + queue poll (`after(100)`) — không treo UI với deck lớn.
+- `--selftest <deck>`: load + check headless, assert đủ nhóm entity/finding → PASS (khớp CLI 11 LỖI/6 CẢNH BÁO trên test deck). Đã verify trực quan bằng screenshot 2 trạng thái.
+- Style: theme clam + màu xám HM classic (#d6d3ce), selection xanh #316ac5.
+
 ### Next
-1. Chạy trên deck K12E thật → tinh chỉnh (đặc biệt nhóm 7 với mặt cong bán kính lớn, và performance ~500k element).
-2. Cân nhắc: diff cấu trúc cp0 vs cp1 (so pair-by-pair 2 file contact); cảnh báo mtime mesh mới hơn odb của *INITIAL CONDITIONS.
+1. Chạy trên deck K12E thật (GUI hoặc CLI) → tinh chỉnh (đặc biệt nhóm 7 với mặt cong bán kính lớn, và performance ~500k element).
+2. Cân nhắc: diff cấu trúc cp0 vs cp1 (so pair-by-pair 2 file contact); cảnh báo mtime mesh mới hơn odb của *INITIAL CONDITIONS; GUI thêm nút re-run 1 nhóm check riêng.
 
 ## 2026-07-10 — Khởi tạo repo
 
