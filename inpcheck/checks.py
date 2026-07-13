@@ -836,38 +836,38 @@ def _breakdown(n_tri, n_quad):
     return " + ".join(parts) or "0 mat"
 
 
-def _coverage_frac(m, src_faces, dst_faces, gap):
-    """% mat cua src co mat dst doi dien trong khoang `gap` (khong xet dau)."""
-    dst_geo = []
-    rmax = 0.0
+def _opposite_gaps(m, src_faces, dst_faces):
+    """Khoang cach tu tam moi mat src toi tam mat dst GAN NHAT.
+
+    Y tuong: pattern tile/xen ke cho khoang cach NEN deu nhau; thieu 1 element
+    thi cac mat quanh do co khoang cach vot len >> nen. Tra ve:
+        (baseline, threshold, [(diem, d hoac None)], tong so mat src)
+    d = None nghia la khong tim thay gi trong pham vi quet (rat xa).
+    """
+    dst_pts = []
     for _key, ordered, _eid in dst_faces:
         g = _face_geo(m, ordered)
         if g:
-            dst_geo.append(g)
-            if g[1] > rmax:
-                rmax = g[1]
-    if not dst_geo:
-        return 0.0
-    grid = Grid(rmax + gap)
-    for c, r, nrm in dst_geo:
-        grid.add(c, (r, nrm, c))
-    covered = 0
-    total = 0
+            dst_pts.append(g[0])
+    src_pts = []
     for _key, ordered, _eid in src_faces:
         g = _face_geo(m, ordered)
-        if not g:
-            continue
-        total += 1
-        cs = g[0]
-        for cm, (r_m, n_m, c_m) in grid.near(cs):
-            v = sub(cs, c_m)
-            d_n = abs(dot(v, n_m))
-            if d_n > gap:
-                continue
-            if dot(v, v) - d_n * d_n <= (r_m * 1.25) ** 2:
-                covered += 1
-                break
-    return covered / total if total else 0.0
+        if g:
+            src_pts.append(g[0])
+    if not dst_pts or not src_pts:
+        return None
+    cell = max(2.0 * m.median_edge, 1e-9)
+    grid = Grid(cell)
+    for p in dst_pts:
+        grid.add(p, None)
+    dists = [(p, grid.nearest_dist(p, max_rings=4)) for p in src_pts]
+    vals = sorted(d for _p, d in dists if d is not None)
+    if not vals:
+        return None
+    base = vals[len(vals) // 2]
+    thr = max(2.0 * base, base + 0.6 * m.median_edge)
+    anomalies = [(p, d) for p, d in dists if d is None or d > thr]
+    return base, thr, anomalies, len(src_pts)
 
 
 def check_groups(model, gap_tol=None):
@@ -920,39 +920,64 @@ def check_groups(model, gap_tol=None):
                          "ti le dt slave/master = %.3f%s"
                          % (label, sl, ms, _breakdown(ts, qs), a_s,
                             _breakdown(tm, qm), a_m, ratio, note)))
+        # ---- do "khoang cach nen" toi phia doi dien de tim VUNG THIEU ----
+        # (chiu duoc ca pattern tile XEN KE: nen deu, thieu element -> vot len)
+        n_warn_clusters = 0
+        base_txt = []
+        for direction, src, dst, thieu_ben in (
+                ("slave->master", sf, mf, "master"),
+                ("master->slave", mf, sf, "slave")):
+            gp = _opposite_gaps(m, src, dst)
+            if gp is None:
+                continue
+            base, thr, anoms, total = gp
+            base_txt.append("%s %.3g" % (direction, base))
+            if not anoms:
+                continue
+            pts = [p for p, _d in anoms]
+            big_lim = max(10, int(0.05 * total))
+            for ci, idxs in enumerate(cluster_points(pts, 3.0 * m.median_edge)[:8], 1):
+                ds = [anoms[i][1] for i in idxs]
+                dmax = max((d for d in ds if d is not None), default=None)
+                d_str = ("~%.3g" % dmax) if dmax is not None else (">%.3g" % (8.0 * m.median_edge))
+                cc = centroid([pts[i] for i in idxs])
+                if len(idxs) <= big_lim:
+                    n_warn_clusters += 1
+                    F.append(Finding("WARN", CK_GROUP, f, l,
+                                     "%s %s<->%s: VUNG THIEU DOI DIEN (%s): %d mat quanh %s, "
+                                     "khoang cach toi phia kia %s (nen ~%.3g) - thieu element "
+                                     "ben %s?"
+                                     % (label, sl, ms, direction, len(idxs), _fmt_pt(cc),
+                                        d_str, base, thieu_ben)))
+                else:
+                    F.append(Finding("INFO", CK_GROUP, f, l,
+                                     "%s %s<->%s: %d mat %s xa phia kia (%s, nen ~%.3g) "
+                                     "- vung lien mach lon, thuong la VIEN do 1 phia rong hon "
+                                     "(binh thuong)"
+                                     % (label, sl, ms, len(idxs), direction, d_str, base)))
         area_anomaly = (ratio > 1.02) or (label.startswith("TIE")
                                           and abs(ratio - 1.0) > 0.05)
         if area_anomaly:
-            # phan biet: lech do tiling/loai element (van phu nhau du) hay thieu that
-            gap_eff = gap_tol
-            for _nm, tsl, tms, pt, _st, _f2, _l2 in m.ties:
-                if tsl == sl and tms == ms and pt is not None:
-                    gap_eff = pt
-                    break
-            f_sm = _coverage_frac(m, sf, mf, gap_eff)   # slave duoc master phu
-            f_ms = _coverage_frac(m, mf, sf, gap_eff)   # master nam tren slave
-            if min(f_sm, f_ms) >= 0.8:
+            if n_warn_clusters == 0:
                 F.append(Finding("INFO", CK_GROUP, f, l,
-                                 "%s %s<->%s: dien tich lech %.1f%% NHUNG 2 phia van phu "
-                                 "nhau (slave duoc phu %.0f%%, master %.0f%%) -> loai "
-                                 "element/tiling khac nhau (hop le)"
+                                 "%s %s<->%s: dien tich lech %.1f%% nhung KHONG co vung "
+                                 "thieu doi dien (khoang cach nen: %s) -> loai element/tiling "
+                                 "khac nhau (hop le)"
                                  % (label, sl, ms, abs(ratio - 1.0) * 100.0,
-                                    f_sm * 100.0, f_ms * 100.0)))
+                                    "; ".join(base_txt) or "-")))
             elif ratio > 1.02:
                 F.append(Finding("WARN", CK_GROUP, f, l,
                                  "%s %s<->%s: dien tich slave (%.6g) LON HON master (%.6g) "
-                                 "%.1f%% VA do phu chi dat slave %.0f%% / master %.0f%% "
+                                 "%.1f%% VA co %d VUNG THIEU DOI DIEN (xem dong tren) "
                                  "- master hut/chon thieu element?"
-                                 % (label, sl, ms, a_s, a_m,
-                                    (ratio - 1.0) * 100.0,
-                                    f_sm * 100.0, f_ms * 100.0)))
+                                 % (label, sl, ms, a_s, a_m, (ratio - 1.0) * 100.0,
+                                    n_warn_clusters)))
             else:
                 F.append(Finding("WARN", CK_GROUP, f, l,
-                                 "%s %s<->%s: TIE nhung dien tich 2 phia lech %.1f%% VA do "
-                                 "phu chi dat slave %.0f%% / master %.0f%% - vung tie 2 ben "
-                                 "phai trum nhau, kiem tra chon element"
+                                 "%s %s<->%s: TIE nhung dien tich 2 phia lech %.1f%% VA co "
+                                 "%d VUNG THIEU DOI DIEN - vung tie 2 ben phai trum nhau"
                                  % (label, sl, ms, abs(ratio - 1.0) * 100.0,
-                                    f_sm * 100.0, f_ms * 100.0)))
+                                    n_warn_clusters)))
         # khuyen nghi slave = luoi min
         if n_s and n_m:
             avg_s = a_s / n_s
@@ -996,12 +1021,20 @@ def check_groups(model, gap_tol=None):
             comps.append(size)
         if len(comps) > 1:
             comps.sort(reverse=True)
-            F.append(Finding("WARN", CK_GROUP, "", 0,
-                             "SURFACE '%s': bi tach thanh %d mang roi rac (kich thuoc: %s) "
-                             "- chon nham element o xa hoac sot element noi giua?"
-                             % (name, len(comps),
-                                ", ".join(str(x) for x in comps[:8])
-                                + (" ..." if len(comps) > 8 else ""))))
+            med = comps[len(comps) // 2]
+            if len(comps) >= 4 and comps[0] <= 3 * max(1, med):
+                # nhieu mang deu nhau = surface dang TILE PATTERN (co chu dich)
+                F.append(Finding("INFO", CK_GROUP, "", 0,
+                                 "SURFACE '%s': dang tile pattern - %d mang deu nhau "
+                                 "(~%d mat/mang) - hop le, da kiem vung thieu bang "
+                                 "khoang cach nen o phan pair" % (name, len(comps), med)))
+            else:
+                F.append(Finding("WARN", CK_GROUP, "", 0,
+                                 "SURFACE '%s': bi tach thanh %d mang roi rac (kich thuoc: %s) "
+                                 "- chon nham element o xa hoac sot element noi giua?"
+                                 % (name, len(comps),
+                                    ", ".join(str(x) for x in comps[:8])
+                                    + (" ..." if len(comps) > 8 else ""))))
 
     # ---- 2 group dung chung mat (vung contact chong len nhau) ----
     used_names = set()

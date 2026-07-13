@@ -108,6 +108,29 @@ class Grid(object):
                         for item in bucket:
                             yield item
 
+    def nearest_dist(self, p, max_rings=4):
+        """Khoang cach toi diem gan nhat trong grid (quet vanh mo rong dan).
+        Tra ve None neu khong co gi trong pham vi max_rings o."""
+        kx, ky, kz = self._key(p)
+        get = self.d.get
+        best = None
+        for ring in range(max_rings + 1):
+            for dx in range(-ring, ring + 1):
+                for dy in range(-ring, ring + 1):
+                    for dz in range(-ring, ring + 1):
+                        if max(abs(dx), abs(dy), abs(dz)) != ring:
+                            continue
+                        bucket = get((kx + dx, ky + dy, kz + dz))
+                        if bucket:
+                            for q, _payload in bucket:
+                                dd = dist(p, q)
+                                if best is None or dd < best:
+                                    best = dd
+            # da tim thay va vanh tiep theo khong the gan hon -> dung
+            if best is not None and best <= ring * self.cell:
+                break
+        return best
+
 
 def cluster_points(pts, radius):
     """Gom cac diem thanh cum (union-find, lien ket khi cach nhau <= radius).

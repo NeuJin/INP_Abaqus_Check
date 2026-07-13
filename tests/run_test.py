@@ -46,7 +46,10 @@ EXPECTED = [
     ("ti le dt slave/master", "thong ke dien tich 2 phia moi pair"),
     ("GROUP CHONG NHAU: 's_top_B' va 's_top_B2'", "2 group dung chung mat"),
     ("loai element/tiling khac nhau (hop le)",
-     "dien tich lech nhung phu nhau du -> hop le (tile co khe)"),
+     "dien tich lech nhung khong co vung thieu -> hop le (tile co khe)"),
+    ("s_top_L<->s_tile_L: VUNG THIEU DOI DIEN",
+     "thieu 1 tile giua pattern -> track duoc bang khoang cach nen"),
+    ("dang tile pattern", "surface nhieu mang deu nhau = tile, khong bao nham"),
 ]
 
 

@@ -70,8 +70,16 @@
 - Ý tưởng (1) đã làm: **GROUP CHONG NHAU** — mặt xuất hiện trong ≥2 group đang tham gia pair → WARN double-count (kèm ghi chú "tập con có chủ đích thì xác nhận").
 - Fixture: BLOCK_K (4 mặt top) + MK_TILES (4 tấm M3D4 0.8×0.8 có khe, dt 2.56 vs 4.0 = lệch 56%) → ra INFO hợp lệ với phủ 100/100; s_top_B2 chồng mặt 202 với s_top_B → WARN. Test 28/28 PASS.
 
+## 2026-07-13 — Nhóm 10 v2: "khoảng cách nền" thay coverage — track được thiếu 1 element trong pattern xen kẽ
+
+- **Bối cảnh**: user chạy deck thật, cặp s_Boltbore↔s_Boltaxle (tri đỏ + quad vàng CÀI RĂNG LƯỢC trên mặt trụ bolt) bị WARN sai "do phu 83%/50%" — coverage kiểu chồng-mặt fail với pattern xen kẽ. User hỏi: thiếu 1 element có track được không?
+- **Giải pháp `_opposite_gaps`**: mỗi mặt src đo khoảng cách tâm→tâm tới mặt dst GẦN NHẤT (`Grid.nearest_dist` quét vành mở rộng). Pattern xen kẽ → khoảng cách NỀN đều (median); thiếu 1 element → mặt quanh đó vọt > max(2×nền, nền+0.6×edge) → cluster → WARN "VUNG THIEU DOI DIEN" kèm tọa độ + nền. Cluster liền mạch lớn (>max(10, 5%)) = viền master rộng hơn → INFO. Phân loại diện tích lệch: không có vùng thiếu → "hop le (tiling)"; có → WARN kèm số vùng.
+- **Islands v2**: ≥4 mảng đều nhau (max ≤ 3×median) = tile pattern → INFO thay vì WARN (hết ồn cho s_pinse 1420 mảnh).
+- Fixture BLOCK_L: 6 mặt top + 5 tile (thiếu tile giữa trên elem 833) → bắt đúng (18.5, 0.5, 1.0), nền ~0, khoảng cách ~1; cặp K đủ tile → INFO hợp lệ. Test 30/30 PASS.
+- Kỳ vọng deck thật: s_Boltbore↔s_Boltaxle hết WARN sai (nền xen kẽ đều); xóa thử 1 element khỏi group sẽ ra đúng 1 VUNG THIEU DOI DIEN.
+
 ### Next
-1. Chạy lại trên deck K12E thật → cặp s_SEbore↔s_pinse (2532 tri vs 1440 tile) giờ phải ra INFO "hop le" thay vì WARN. Verify các nhóm 6/7d/7e/7f + double-click sakura.
+1. Chạy lại trên deck K12E thật → verify: (a) cặp Boltbore/Boltaxle + SEbore/pinse ra INFO hợp lệ; (b) thử xóa 1 element khỏi 1 group xem VUNG THIEU DOI DIEN chỉ đúng chỗ; (c) 7b coverage cũ vẫn báo ">60% khong doi dien" cho pattern xen kẽ — cân nhắc suppress khi nhóm 10 kết luận hợp lệ. Verify double-click sakura.
 2. Cân nhắc: diff cấu trúc cp0 vs cp1 (so pair-by-pair 2 file contact); cảnh báo mtime mesh mới hơn odb của *INITIAL CONDITIONS; GUI thêm nút re-run 1 nhóm check riêng.
 
 ## 2026-07-10 — Khởi tạo repo
